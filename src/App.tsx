@@ -1,4 +1,5 @@
 import { NotificationStack } from "@/components/NotificationStack";
+import { InstallPrompt } from "@/components/InstallPrompt";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -126,6 +127,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <NotificationStack />
+        <InstallPrompt />
         <BrowserRouter>
           <AppContent />
         </BrowserRouter>
