@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useMessagesStore } from "@/store/messagesStore";
 import { useNotificationStore } from "@/store/notificationStore";
-import { Bell, Home, LogOut, Menu, MessageCircle, Search, X } from "lucide-react";
+import { Bell, Home, LogOut, Menu, MessageCircle, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
@@ -47,16 +47,7 @@ export const Navbar = () => {
 
         {isAuthenticated && user ? (
           <>
-            <div className="hidden md:flex items-center gap-1 flex-1 max-w-md mx-8">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Buscar talento, servicios..."
-                  className="w-full h-10 pl-10 pr-4 rounded-full bg-muted border-0 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-            </div>
+            {/* Search removed because it's non-functional */}
             <div className="hidden md:flex items-center gap-2">
               <Link to="/feed">
                 <Button

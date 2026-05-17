@@ -44,12 +44,12 @@ const Index = () => {
           {
             icon: <Users className="w-5 h-5 text-secondary" />,
             label: "jóvenes registrados",
-            value: "2,400+",
+            value: "Comunidad en crecimiento",
           },
           {
             icon: <Briefcase className="w-5 h-5 text-primary" />,
             label: "proyectos completados",
-            value: "580+",
+            value: "Proyectos publicados",
           },
         ]}
         showIllustration
