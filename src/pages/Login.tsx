@@ -2,25 +2,34 @@ import { ForgotPasswordDialog } from "@/components/ForgotPasswordDialog";
 import { Navbar } from "@/components/Navbar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/store/authStore";
 import { useGoogleLogin } from "@react-oauth/google";
 import { motion } from "framer-motion";
+import { Briefcase, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login, loginWithGoogle, isLoading, error, isAuthenticated } = useAuthStore();
+  const { login, loginWithGoogle, confirmGoogleRole, isLoading, error, isAuthenticated, showRoleSelection } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<"freelancer" | "client" | null>(null);
 
   // Redirigir si el login fue exitoso
   useEffect(() => {
     if (isAuthenticated) {
-      navigate("/panel");
+      navigate("/feed");
     }
   }, [isAuthenticated, navigate]);
 
@@ -181,6 +190,80 @@ const Login = () => {
         open={showForgotPassword} 
         onOpenChange={setShowForgotPassword}
       />
+
+      {/* Dialog para seleccionar rol en Google OAuth */}
+      <Dialog open={showRoleSelection} onOpenChange={(open) => {
+        if (!open && !isLoading) {
+          setSelectedRole(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">¿Cuál es tu rol?</DialogTitle>
+            <DialogDescription>
+              Selecciona cómo quieres usar MaslaConnect para personalizar tu experiencia
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-6">
+            {/* Freelancer Option */}
+            <button
+              onClick={() => setSelectedRole("freelancer")}
+              className={`relative rounded-xl border-2 p-6 text-left transition-all ${
+                selectedRole === "freelancer"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-primary/50 hover:bg-muted/50"
+              }`}
+            >
+              <div className="flex items-start gap-4">
+                <div className="rounded-lg bg-primary/10 p-3">
+                  <Briefcase className="w-6 h-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-foreground mb-1">Soy Freelancer</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Ofrezco mis servicios y busco proyectos interesantes
+                  </p>
+                </div>
+              </div>
+            </button>
+
+            {/* Client Option */}
+            <button
+              onClick={() => setSelectedRole("client")}
+              className={`relative rounded-xl border-2 p-6 text-left transition-all ${
+                selectedRole === "client"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-primary/50 hover:bg-muted/50"
+              }`}
+            >
+              <div className="flex items-start gap-4">
+                <div className="rounded-lg bg-primary/10 p-3">
+                  <Users className="w-6 h-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-foreground mb-1">Busco Talento</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Necesito profesionales para mis proyectos
+                  </p>
+                </div>
+              </div>
+            </button>
+          </div>
+
+          <Button
+            onClick={() => {
+              if (selectedRole) {
+                confirmGoogleRole(selectedRole);
+              }
+            }}
+            disabled={!selectedRole || isLoading}
+            className="w-full gradient-primary text-primary-foreground rounded-xl h-11"
+          >
+            {isLoading ? "Completando registro..." : "Continuar"}
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

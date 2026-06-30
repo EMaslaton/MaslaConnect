@@ -23,13 +23,8 @@ const AdminPanel = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [notification, setNotification] = useState<string | null>(null);
+  const adminAccess = isAdmin();
 
-  // Verificar si es admin
-  if (!isAdmin()) {
-    return <Navigate to="/" replace />;
-  }
-
-  // Mostrar notificación si hay error
   useEffect(() => {
     if (error) {
       setNotification(error);
@@ -41,28 +36,27 @@ const AdminPanel = () => {
     }
   }, [error, setError]);
 
-  // Verificar si es admin
-  if (!isAdmin()) {
-    return <Navigate to="/" replace />;
-  }
-
-  // Cargar usuarios
   const handleLoadUsers = async () => {
     setLoading(true);
     try {
       const allUsers = await loadUsersFromSupabase();
       setUsers(allUsers);
-    } catch (error) {
-      console.error("Error loading users:", error);
+    } catch (loadError) {
+      console.error("Error loading users:", loadError);
     } finally {
       setLoading(false);
     }
   };
 
-  // Cargar usuarios al montar
   useEffect(() => {
-    handleLoadUsers();
-  }, []);
+    if (adminAccess) {
+      handleLoadUsers();
+    }
+  }, [adminAccess]);
+
+  if (!adminAccess) {
+    return <Navigate to="/" replace />;
+  }
 
   // Filtrar usuarios
   const filteredUsers = users.filter(

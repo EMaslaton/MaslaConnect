@@ -29,7 +29,7 @@ const Register = () => {
   // Redirigir si el registro fue exitoso
   useEffect(() => {
     if (isAuthenticated) {
-      navigate("/panel");
+      navigate("/feed");
     }
   }, [isAuthenticated, navigate]);
 

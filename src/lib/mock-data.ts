@@ -2,14 +2,53 @@ import sampleProject1 from "@/assets/sample-project-1.jpg";
 import sampleProject4 from "@/assets/sample-project-4.jpg";
 
 export const CATEGORIES = [
+  // Diseño
   { label: "Diseño UI/UX", emoji: "🎨", color: "primary" },
-  { label: "Desarrollo Web", emoji: "💻", color: "secondary" },
-  { label: "Edición de Video", emoji: "🎬", color: "accent" },
-  { label: "Redes Sociales", emoji: "📱", color: "primary" },
+  { label: "Diseño Gráfico", emoji: "🖼️", color: "accent" },
+  { label: "Branding", emoji: "🏷️", color: "primary" },
   { label: "Ilustración", emoji: "✏️", color: "accent" },
-  { label: "Fotografía", emoji: "📸", color: "secondary" },
-  { label: "Copywriting", emoji: "✍️", color: "primary" },
+  
+  // Desarrollo
+  { label: "Desarrollo Web", emoji: "💻", color: "secondary" },
+  { label: "Desarrollo Móvil", emoji: "📱", color: "secondary" },
+  { label: "Backend", emoji: "⚙️", color: "secondary" },
+  { label: "Bases de Datos", emoji: "🗄️", color: "secondary" },
+  
+  // Video & Multimedia
+  { label: "Edición de Video", emoji: "🎬", color: "accent" },
   { label: "Motion Graphics", emoji: "🎞️", color: "accent" },
+  { label: "Animación 3D", emoji: "🎥", color: "accent" },
+  { label: "Producción de Audio", emoji: "🎧", color: "accent" },
+  
+  // Marketing & Contenido
+  { label: "Redes Sociales", emoji: "📱", color: "primary" },
+  { label: "Copywriting", emoji: "✍️", color: "primary" },
+  { label: "Marketing Digital", emoji: "📊", color: "primary" },
+  { label: "SEO", emoji: "🔍", color: "primary" },
+  
+  // Fotografía & Contenido Visual
+  { label: "Fotografía", emoji: "📸", color: "secondary" },
+  { label: "Fotofrafía de Producto", emoji: "📦", color: "secondary" },
+  
+  // Escritura & Traducción
+  { label: "Redacción", emoji: "📝", color: "primary" },
+  { label: "Traducción", emoji: "🌍", color: "primary" },
+  { label: "Edición de Contenido", emoji: "✂️", color: "primary" },
+  
+  // Consultoría & Negocios
+  { label: "Consultoría", emoji: "💼", color: "accent" },
+  { label: "Estrategia Empresarial", emoji: "📈", color: "accent" },
+  { label: "Mentoría", emoji: "👨‍🏫", color: "accent" },
+  
+  // Educación & Tutorías
+  { label: "Clases Particulares", emoji: "🎓", color: "secondary" },
+  { label: "Entrenamiento Profesional", emoji: "🏋️", color: "secondary" },
+  
+  // Otros
+  { label: "Administración", emoji: "📋", color: "primary" },
+  { label: "Atención al Cliente", emoji: "💬", color: "secondary" },
+  { label: "Gestión de Proyectos", emoji: "✅", color: "accent" },
+  { label: "Otro", emoji: "⭐", color: "primary" },
 ] as const;
 
 export type Talent = {

@@ -1,4 +1,5 @@
 // src/services/supabaseService.ts
+import { localMessaging } from "@/lib/localMessaging";
 import { Service } from "@/types";
 import { createClient } from "@supabase/supabase-js";
 
@@ -297,8 +298,8 @@ export class MessagingManager {
       console.log(`[Supabase] Fetched ${data.length} conversations ✅`);
       return data;
     } catch (error) {
-      console.error("[Supabase] Error fetching conversations:", error);
-      return [];
+      console.warn("[Supabase] Error fetching conversations, using local fallback:", error);
+      return localMessaging.getConversations(userId);
     }
   }
 
@@ -319,8 +320,8 @@ export class MessagingManager {
 
       return data;
     } catch (error) {
-      console.error("[Supabase] Error fetching conversation:", error);
-      return null;
+      console.warn("[Supabase] Error fetching conversation, using local fallback:", error);
+      return localMessaging.getConversationById(conversationId);
     }
   }
 
@@ -333,14 +334,13 @@ export class MessagingManager {
         `[Supabase] GET_OR_CREATE /conversations between ${userId1} and ${userId2}`
       );
 
-      // Intentar obtener conversación existente
-      const { data: existingData, error: searchError } = await supabase
+      const { data: existingData } = await supabase
         .from("conversations")
         .select("*")
         .or(
           `and(participant_1_id.eq.${userId1},participant_2_id.eq.${userId2}),and(participant_1_id.eq.${userId2},participant_2_id.eq.${userId1})`
         )
-        .single();
+        .maybeSingle();
 
       if (existingData) {
         console.log(
@@ -349,7 +349,6 @@ export class MessagingManager {
         return existingData;
       }
 
-      // Si no existe, crear una nueva
       const { data: newConversation, error: createError } = await supabase
         .from("conversations")
         .insert([
@@ -368,8 +367,8 @@ export class MessagingManager {
       );
       return newConversation;
     } catch (error) {
-      console.error("[Supabase] Error with conversation:", error);
-      return null;
+      console.warn("[Supabase] Error with conversation, using local fallback:", error);
+      return localMessaging.getOrCreateConversation(userId1, userId2);
     }
   }
 
@@ -393,8 +392,8 @@ export class MessagingManager {
 
       return data;
     } catch (error) {
-      console.error("[Supabase] Error fetching messages:", error);
-      return [];
+      console.warn("[Supabase] Error fetching messages, using local fallback:", error);
+      return localMessaging.getMessages(conversationId, limit);
     }
   }
 
@@ -428,15 +427,19 @@ export class MessagingManager {
       console.log(`[Supabase] Message sent: ${data.id} ✅`);
       return data;
     } catch (error) {
-      console.error("[Supabase] Error sending message:", error);
-      return null;
+      console.warn("[Supabase] Error sending message, using local fallback:", error);
+      return localMessaging.sendMessage(conversationId, senderId, content);
     }
   }
 
   /**
    * Suscribirse a nuevos mensajes en una conversación (real-time)
    */
-  subscribeToMessages(conversationId: string, callback: (message: any) => void) {
+  subscribeToMessages(conversationId: string, callback: (message: Record<string, unknown>) => void) {
+    if (conversationId.startsWith("conv_")) {
+      return localMessaging.subscribeToMessages(conversationId, callback);
+    }
+
     console.log(
       `[Supabase] Subscribing to messages in conversation ${conversationId}`
     );
@@ -453,7 +456,7 @@ export class MessagingManager {
         },
         (payload) => {
           console.log("[Supabase] New message received:", payload.new);
-          callback(payload.new);
+          callback(payload.new as Record<string, unknown>);
         }
       )
       .subscribe();
@@ -475,8 +478,9 @@ export class MessagingManager {
 
       return true;
     } catch (error) {
-      console.error("[Supabase] Error marking message as read:", error);
-      return false;
+      console.warn("[Supabase] Error marking message as read, using local fallback:", error);
+      localMessaging.markAsRead(messageId);
+      return true;
     }
   }
 }

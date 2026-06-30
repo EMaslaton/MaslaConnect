@@ -63,9 +63,12 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
   setCurrentMessages: (messages) => set({ currentMessages: messages }),
 
   addMessage: (message) => {
-    set((state) => ({
-      currentMessages: [...state.currentMessages, message],
-    }));
+    set((state) => {
+      if (state.currentMessages.some((m) => m.id === message.id)) {
+        return state;
+      }
+      return { currentMessages: [...state.currentMessages, message] };
+    });
   },
 
   setConversations: (conversations) => set({ conversations }),
@@ -128,25 +131,26 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
         senderId,
         content
       );
-      if (message) {
-        // Mapear campos de snake_case a camelCase
-        const mappedMessage: ConversationMessage = {
-          id: message.id,
-          conversationId: message.conversation_id,
-          senderId: message.sender_id,
-          content: message.content,
-          createdAt: new Date(message.created_at),
-          readAt: message.read_at ? new Date(message.read_at) : undefined,
-        };
-        get().addMessage(mappedMessage);
-        
-        // Agregar notificación
+      if (!message) {
+        const errorMessage = "No se pudo enviar el mensaje";
+        set({ error: errorMessage });
         useNotificationStore.getState().addNotification({
-          type: "success",
-          title: "Mensaje enviado",
-          message: "Tu mensaje ha sido entregado",
+          type: "error",
+          title: "Error al enviar",
+          message: errorMessage,
         });
+        return;
       }
+
+      const mappedMessage: ConversationMessage = {
+        id: message.id,
+        conversationId: message.conversation_id,
+        senderId: message.sender_id,
+        content: message.content,
+        createdAt: new Date(message.created_at),
+        readAt: message.read_at ? new Date(message.read_at) : undefined,
+      };
+      get().addMessage(mappedMessage);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Error sending message";
@@ -209,6 +213,14 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
 
         // Subscribir a nuevos mensajes en tiempo real
         get().subscribeToMessages(conversation.id);
+      } else {
+        const errorMessage = "No se pudo crear la conversación";
+        set({ error: errorMessage, isLoading: false });
+        useNotificationStore.getState().addNotification({
+          type: "error",
+          title: "Error de chat",
+          message: errorMessage,
+        });
       }
     } catch (error) {
       const errorMessage =

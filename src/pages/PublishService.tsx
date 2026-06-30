@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CATEGORIES } from "@/lib/mock-data";
+import { validateCustomCategory, validateServiceDescription, validateServiceTitle } from "@/lib/moderation";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useServiceStore } from "@/store/serviceStore";
@@ -26,6 +27,7 @@ const PublishService = () => {
   const [formData, setFormData] = useState({
     title: "",
     category: "",
+    customCategory: "",
     description: "",
     includes: "",
     price: "",
@@ -34,6 +36,8 @@ const PublishService = () => {
   const [images, setImages] = useState<string[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [error, setError] = useState("");
+  const [validationIssues, setValidationIssues] = useState<string[]>([]);
+  const [isPublishing, setIsPublishing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -64,7 +68,7 @@ const PublishService = () => {
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!formData.title || !formData.category || !formData.description || !formData.price) {
       setError("Por favor completa todos los campos");
       return;
@@ -75,25 +79,58 @@ const PublishService = () => {
       return;
     }
 
+    const titleValidation = validateServiceTitle(formData.title);
+    const descValidation = validateServiceDescription(formData.description);
+
+    if (!titleValidation.isClean || titleValidation.severity === "high") {
+      setError("El título contiene contenido inapropiado");
+      return;
+    }
+
+    if (!descValidation.isClean || descValidation.severity === "high") {
+      setError("La descripción contiene contenido inapropiado");
+      return;
+    }
+
+    if (formData.category === "Otro") {
+      const catValidation = validateCustomCategory(formData.customCategory);
+      if (!catValidation.isClean || catValidation.severity === "high") {
+        setError("La categoría personalizada contiene contenido inapropiado");
+        return;
+      }
+    }
+
     setError("");
+    setIsPublishing(true);
 
     try {
-      // Guardar servicio SIN imágenes base64 (son demasiado grandes para localStorage)
-      addService({
+      const finalCategory =
+        formData.category === "Otro" ? formData.customCategory : formData.category;
+
+      const result = await addService({
         userId: user.id,
+        userName: user.name,
         title: formData.title,
         description: formData.description,
-        category: formData.category,
+        category: finalCategory,
         price: formData.price,
         rating: 0,
         reviews: 0,
+        image: images[0],
+        images: images.length > 0 ? images : undefined,
       });
 
-      console.log("[PublishService] ✅ Service published successfully");
+      if (!result) {
+        setError("No se pudo publicar el servicio. Intenta de nuevo.");
+        return;
+      }
+
       navigate(`/perfil/${user.id}`);
     } catch (err) {
       console.error("[PublishService] Error:", err);
       setError("Ocurrió un error al publicar el servicio");
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -155,10 +192,21 @@ const PublishService = () => {
                     placeholder='Ej: "Diseño de Landing Page profesional"'
                     className="mt-1.5 rounded-xl"
                     value={formData.title}
-                    onChange={(e) =>
-                      setFormData({ ...formData, title: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const newTitle = e.target.value;
+                      setFormData({ ...formData, title: newTitle });
+                      // Validar en tiempo real
+                      const validation = validateServiceTitle(newTitle);
+                      setValidationIssues(validation.issues);
+                    }}
                   />
+                  {validationIssues.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {validationIssues.map((issue, idx) => (
+                        <p key={idx} className="text-xs text-destructive">{issue}</p>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <Label>Categoría</Label>
@@ -166,14 +214,15 @@ const PublishService = () => {
                     {CATEGORIES.map((cat) => (
                       <button
                         key={cat.label}
-                        onClick={() =>
-                          setFormData({ ...formData, category: cat.label })
-                        }
+                        onClick={() => {
+                          setFormData({ ...formData, category: cat.label, customCategory: "" });
+                          setValidationIssues([]);
+                        }}
                         className={cn(
                           "px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-1.5",
                           formData.category === cat.label
                             ? "gradient-primary text-primary-foreground"
-                            : "bg-card shadow-card text-foreground"
+                            : "bg-card shadow-card text-foreground hover:shadow-lg"
                         )}
                       >
                         {cat.emoji} {cat.label}
@@ -181,9 +230,48 @@ const PublishService = () => {
                     ))}
                   </div>
                 </div>
+                
+                {formData.category === "Otro" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <Label>Cuéntanos cuál es tu categoría</Label>
+                    <Input
+                      placeholder="Ej: Copywriting especializado"
+                      className="mt-1.5 rounded-xl"
+                      value={formData.customCategory}
+                      onChange={(e) => {
+                        const newCategory = e.target.value;
+                        setFormData({ ...formData, customCategory: newCategory });
+                        // Validar categoría personalizada
+                        if (newCategory.trim()) {
+                          const validation = validateCustomCategory(newCategory);
+                          setValidationIssues(validation.issues);
+                        }
+                      }}
+                    />
+                    {validationIssues.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {validationIssues.map((issue, idx) => (
+                          <p key={idx} className="text-xs text-destructive">{issue}</p>
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+                
                 <Button
-                  onClick={() => setStep(1)}
-                  disabled={!formData.title || !formData.category}
+                  onClick={() => {
+                    const selectedCategory = formData.category === "Otro" ? formData.customCategory : formData.category;
+                    const titleValidation = validateServiceTitle(formData.title);
+                    if (!titleValidation.isClean) {
+                      setError("El título contiene contenido inapropiado");
+                      return;
+                    }
+                    setStep(1);
+                  }}
+                  disabled={!formData.title || !formData.category || (formData.category === "Otro" && !formData.customCategory) || validationIssues.length > 0}
                   className="w-full gradient-primary text-primary-foreground rounded-xl h-11"
                 >
                   Continuar <ArrowRight className="w-4 h-4 ml-2" />
@@ -212,10 +300,26 @@ const PublishService = () => {
                     placeholder="¿Qué incluye? ¿Cómo trabajas? ¿Qué entregables ofreces?"
                     className="mt-1.5 rounded-xl min-h-[120px]"
                     value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const newDesc = e.target.value;
+                      setFormData({ ...formData, description: newDesc });
+                      // Validar en tiempo real
+                      if (newDesc.trim()) {
+                        const validation = validateServiceDescription(newDesc);
+                        setValidationIssues(validation.issues);
+                      }
+                    }}
                   />
+                  {validationIssues.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {validationIssues.map((issue, idx) => (
+                        <p key={idx} className="text-xs text-destructive">{issue}</p>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {formData.description.length}/2000 caracteres
+                  </p>
                 </div>
                 <div>
                   <Label>¿Qué incluye? (uno por línea)</Label>
@@ -231,8 +335,16 @@ const PublishService = () => {
                   />
                 </div>
                 <Button
-                  onClick={() => setStep(2)}
-                  disabled={!formData.description}
+                  onClick={() => {
+                    const descValidation = validateServiceDescription(formData.description);
+                    if (!descValidation.isClean) {
+                      setError("La descripción contiene contenido inapropiado");
+                      return;
+                    }
+                    setError("");
+                    setStep(2);
+                  }}
+                  disabled={!formData.description || validationIssues.length > 0}
                   className="w-full gradient-primary text-primary-foreground rounded-xl h-11"
                 >
                   Continuar <ArrowRight className="w-4 h-4 ml-2" />
@@ -356,9 +468,11 @@ const PublishService = () => {
               <div className="space-y-3">
                 <Button
                   onClick={handlePublish}
+                  disabled={isPublishing}
                   className="w-full gradient-primary text-primary-foreground rounded-xl h-11"
                 >
-                  <Check className="w-4 h-4 mr-2" /> Publicar servicio
+                  <Check className="w-4 h-4 mr-2" />{" "}
+                  {isPublishing ? "Publicando..." : "Publicar servicio"}
                 </Button>
                 <Button
                   onClick={() => setPreviewOpen(true)}

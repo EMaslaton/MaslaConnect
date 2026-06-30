@@ -28,10 +28,16 @@ const mockUsers: UserProfile[] = TALENTS.map((talent) => ({
 
 interface AuthStore extends AuthState {
   registeredUsers: UserProfile[];
+  /** Datos pendientes de Google para seleccionar rol */
+  pendingGoogleData: { name: string; email: string; avatar?: string } | null;
+  /** Mostrar dialog de selección de rol */
+  showRoleSelection: boolean;
   /** Authenticate user with email and password */
   login: (email: string, password: string) => void;
   /** Authenticate user with Google OAuth credentials */
   loginWithGoogle: (googleData: { name: string; email: string; avatar?: string }) => void;
+  /** Confirmar rol seleccionado para nuevo usuario de Google */
+  confirmGoogleRole: (role: "freelancer" | "client") => Promise<void>;
   /** Create new user account */
   register: (userData: Omit<UserProfile, "id" | "createdAt" | "updatedAt">) => void;
   /** Clear authentication and current user */
@@ -56,6 +62,8 @@ interface AuthStore extends AuthState {
   isAdmin: () => boolean;
   /** Check if a user email is the platform owner */
   isOwner: (email: string) => boolean;
+  /** Update password for a user by email */
+  resetPassword: (email: string, newPassword: string) => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -65,33 +73,80 @@ export const useAuthStore = create<AuthStore>()(
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      pendingGoogleData: null,
+      showRoleSelection: false,
       // Solo mantener Valentina Reyes como usuario mock
       registeredUsers: [],
 
       login: (email: string, password: string) => {
         set({ isLoading: true, error: null });
-        
-        // Simular delay de red
-        setTimeout(() => {
-          const allUsers = [...mockUsers, ...get().registeredUsers];
-          const user = allUsers.find((u) => u.email === email && u.password === password);
-          
-          if (user) {
-            set({
-              user,
-              isAuthenticated: true,
-              isLoading: false,
-              error: null,
-            });
-          } else {
+
+        (async () => {
+          try {
+            const allUsers = [...mockUsers, ...get().registeredUsers];
+            let user = allUsers.find(
+              (u) => u.email === email && u.password === password
+            );
+
+            if (!user) {
+              const { data: supabaseUser, error } = await supabase
+                .from("users")
+                .select("*")
+                .eq("email", email)
+                .maybeSingle();
+
+              if (!error && supabaseUser && supabaseUser.password === password) {
+                user = {
+                  id: supabaseUser.id,
+                  email: supabaseUser.email,
+                  password: supabaseUser.password,
+                  name: supabaseUser.name,
+                  role: supabaseUser.role as UserProfile["role"],
+                  avatar: supabaseUser.avatar,
+                  tagline: supabaseUser.tagline,
+                  bio: supabaseUser.bio,
+                  location: supabaseUser.location,
+                  skills: supabaseUser.skills || [],
+                  createdAt: new Date(supabaseUser.created_at),
+                  updatedAt: new Date(supabaseUser.updated_at),
+                };
+
+                const alreadyRegistered = get().registeredUsers.some(
+                  (u) => u.id === user!.id
+                );
+                if (!alreadyRegistered) {
+                  set((state) => ({
+                    registeredUsers: [...state.registeredUsers, user!],
+                  }));
+                }
+              }
+            }
+
+            if (user) {
+              set({
+                user,
+                isAuthenticated: true,
+                isLoading: false,
+                error: null,
+              });
+            } else {
+              set({
+                user: null,
+                isAuthenticated: false,
+                isLoading: false,
+                error: "Email o contraseña inválidos",
+              });
+            }
+          } catch (error) {
+            console.error("[Auth] Login error:", error);
             set({
               user: null,
               isAuthenticated: false,
               isLoading: false,
-              error: "Email o contraseña inválidos",
+              error: "Error al iniciar sesión",
             });
           }
-        }, 500);
+        })();
       },
 
       loginWithGoogle: (googleData) => {
@@ -104,52 +159,17 @@ export const useAuthStore = create<AuthStore>()(
             
             // Solo elielmaslaton@gmail.com es admin por defecto
             const isAdmin = googleData.email === "elielmaslaton@gmail.com";
-            const defaultRole = isAdmin ? "admin" : "freelancer";
             
-            // Si el usuario no existe, crear uno nuevo
-            if (!user) {
-              user = {
-                id: `user_${Date.now()}`,
-                email: googleData.email,
-                name: googleData.name,
-                role: defaultRole as const,
-                avatar: googleData.avatar,
-                tagline: isAdmin ? "Administrador" : "Nuevo miembro de MaslaConnect",
-                bio: isAdmin ? "Gestor principal de la plataforma" : "Bienvenido a MaslaConnect",
-                location: "Por definir",
-                skills: isAdmin ? ["administración", "gestión de usuarios"] : [],
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              };
-              
-              // Guardar en Supabase
-              await supabase
-                .from("users")
-                .insert({
-                  id: user.id,
-                  email: user.email,
-                  name: user.name,
-                  role: user.role,
-                  avatar: user.avatar,
-                  tagline: user.tagline,
-                  bio: user.bio,
-                  location: user.location,
-                  skills: user.skills,
-                });
-              
-              set((state) => ({
-                registeredUsers: [...state.registeredUsers, user as UserProfile],
-              }));
-            } else {
-              // Si el usuario ya existe, MANTENER su rol actual (ya fue decidido en AdminPanel)
-              // Solo actualizar nombre y avatar si cambiaron
+            // Si el usuario ya existe
+            if (user) {
+              // Actualizar solo nombre y avatar si cambiaron
               user = {
                 ...user,
                 name: googleData.name,
                 avatar: googleData.avatar || user.avatar,
               };
               
-              // Actualizar solo nombre y avatar en Supabase (NO el rol)
+              // Actualizar en Supabase
               await supabase
                 .from("users")
                 .update({ 
@@ -164,16 +184,59 @@ export const useAuthStore = create<AuthStore>()(
                 );
                 return {
                   registeredUsers: updatedRegisteredUsers,
+                  user,
+                  isAuthenticated: true,
+                  isLoading: false,
                 };
               });
+            } else {
+              // Usuario nuevo
+              if (isAdmin) {
+                // Admin siempre se crea directamente
+                user = {
+                  id: `user_${Date.now()}`,
+                  email: googleData.email,
+                  name: googleData.name,
+                  role: "admin" as const,
+                  avatar: googleData.avatar,
+                  tagline: "Administrador",
+                  bio: "Gestor principal de la plataforma",
+                  location: "Por definir",
+                  skills: ["administración", "gestión de usuarios"],
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                };
+                
+                // Guardar en Supabase
+                await supabase
+                  .from("users")
+                  .insert({
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    role: user.role,
+                    avatar: user.avatar,
+                    tagline: user.tagline,
+                    bio: user.bio,
+                    location: user.location,
+                    skills: user.skills,
+                  });
+                
+                set((state) => ({
+                  registeredUsers: [...state.registeredUsers, user as UserProfile],
+                  user,
+                  isAuthenticated: true,
+                  isLoading: false,
+                }));
+              } else {
+                // Usuario normal necesita seleccionar rol
+                set({
+                  isLoading: false,
+                  pendingGoogleData: googleData,
+                  showRoleSelection: true,
+                });
+              }
             }
-            
-            set({
-              user,
-              isAuthenticated: true,
-              isLoading: false,
-              error: null,
-            });
           } catch (error) {
             console.error("❌ Error in Google login:", error);
             set({
@@ -182,6 +245,61 @@ export const useAuthStore = create<AuthStore>()(
             });
           }
         })();
+      },
+
+      confirmGoogleRole: async (role: "freelancer" | "client") => {
+        set({ isLoading: true, error: null });
+        
+        try {
+          const googleData = get().pendingGoogleData;
+          if (!googleData) {
+            throw new Error("No hay datos pendientes de Google");
+          }
+
+          const user: UserProfile = {
+            id: `user_${Date.now()}`,
+            email: googleData.email,
+            name: googleData.name,
+            role,
+            avatar: googleData.avatar,
+            tagline: `Nuevo ${role === "freelancer" ? "freelancer" : "cliente"} en MaslaConnect`,
+            bio: "Bienvenido a MaslaConnect",
+            location: "Por definir",
+            skills: role === "freelancer" ? [] : [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+
+          // Guardar en Supabase
+          await supabase
+            .from("users")
+            .insert({
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              role: user.role,
+              avatar: user.avatar,
+              tagline: user.tagline,
+              bio: user.bio,
+              location: user.location,
+              skills: user.skills,
+            });
+
+          set((state) => ({
+            user,
+            isAuthenticated: true,
+            isLoading: false,
+            pendingGoogleData: null,
+            showRoleSelection: false,
+            registeredUsers: [...state.registeredUsers, user],
+          }));
+        } catch (error) {
+          console.error("❌ Error al confirmar rol de Google:", error);
+          set({
+            isLoading: false,
+            error: "Error al completar el registro",
+          });
+        }
       },
 
       register: (userData) => {
@@ -557,6 +675,33 @@ export const useAuthStore = create<AuthStore>()(
 
       isOwner: (email: string) => {
         return email === OWNER_EMAIL;
+      },
+
+      resetPassword: async (email: string, newPassword: string) => {
+        try {
+          set((state) => {
+            const updatedRegisteredUsers = state.registeredUsers.map((u) =>
+              u.email === email ? { ...u, password: newPassword, updatedAt: new Date() } : u
+            );
+            return {
+              registeredUsers: updatedRegisteredUsers,
+              user:
+                state.user?.email === email
+                  ? { ...state.user, password: newPassword, updatedAt: new Date() }
+                  : state.user,
+            };
+          });
+
+          await supabase
+            .from("users")
+            .update({ password: newPassword })
+            .eq("email", email);
+
+          return true;
+        } catch (error) {
+          console.error("[Auth] Reset password error:", error);
+          return false;
+        }
       },
     }),
     {

@@ -32,23 +32,23 @@ export const ContactUserButton = ({
 
   const handleContact = async () => {
     if (!currentUser?.id) {
-      // Redirigir a login si no está autenticado
       navigate("/login");
       return;
     }
 
     if (currentUser.id === user.id) {
-      // No puede enviarse un mensaje a sí mismo
       return;
     }
 
     try {
       setIsLoading(true);
       await startConversation(currentUser.id, user.id, user);
-      // Redirigir a la página de mensajes
+      if (useMessagesStore.getState().error) {
+        return;
+      }
       navigate("/mensajes");
-    } catch (error) {
-      console.error("Error starting conversation:", error);
+    } catch (contactError) {
+      console.error("Error starting conversation:", contactError);
     } finally {
       setIsLoading(false);
     }

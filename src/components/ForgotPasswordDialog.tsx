@@ -36,64 +36,46 @@ export const ForgotPasswordDialog = ({ open, onOpenChange }: ForgotPasswordDialo
     setError("");
 
     try {
-      // En desarrollo, simular envío de email de confirmación
-      if (isDev) {
-        console.log("📧 DEV MODE: Generando email de confirmación...");
-        
-        // Generar token de confirmación (30 minutos de validez)
-        const timestamp = Date.now();
-        const expiresAt = timestamp + (30 * 60 * 1000);
-        const confirmationData = { 
-          email, 
-          timestamp, 
-          expiresAt,
-          type: "confirmation"
-        };
-        const confirmToken = btoa(JSON.stringify(confirmationData));
-        
-        // Guardar en sessionStorage
-        sessionStorage.setItem(`confirm_token_${confirmToken}`, JSON.stringify(confirmationData));
-        
-        // Generar link de confirmación
-        const confirmLink = `${window.location.origin}/confirm-reset?token=${confirmToken}`;
-        
-        console.log(`✉️ Email de confirmación:`);
-        console.log(`Para: ${email}`);
-        console.log(`Link: ${confirmLink}`);
-        console.log(`Válido por: 30 minutos`);
-        
-        // Mostrar el link en la interfaz (solo en DEV)
-        setResetLink(confirmLink);
-        setSuccess(true);
-        setEmail("");
+      const { data: existingUser, error: lookupError } = await supabase
+        .from("users")
+        .select("email")
+        .eq("email", email.trim())
+        .maybeSingle();
+
+      if (lookupError || !existingUser) {
+        setError("Email no encontrado");
         setIsLoading(false);
         return;
       }
 
-      // En producción, enviar email real via Supabase + Resend
-      // Por ahora seguimos con Supabase nativo
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/confirm-reset`,
-      });
+      const timestamp = Date.now();
+      const expiresAt = timestamp + 30 * 60 * 1000;
+      const confirmationData = {
+        email: email.trim(),
+        timestamp,
+        expiresAt,
+        type: "confirmation",
+      };
+      const confirmToken = btoa(JSON.stringify(confirmationData));
 
-      if (resetError) {
-        setError("Email no encontrado o error al enviar");
-        setIsLoading(false);
-        return;
+      sessionStorage.setItem(
+        `confirm_token_${confirmToken}`,
+        JSON.stringify(confirmationData)
+      );
+
+      const confirmLink = `${window.location.origin}/confirm-reset?token=${confirmToken}`;
+
+      if (isDev) {
+        console.log(`✉️ Email de confirmación para: ${email}`);
+        console.log(`Link: ${confirmLink}`);
+        setResetLink(confirmLink);
       }
 
       setSuccess(true);
       setEmail("");
-      
-      // Cerrar el modal después de 4 segundos
-      setTimeout(() => {
-        onOpenChange(false);
-        setSuccess(false);
-      }, 4000);
-      
       setIsLoading(false);
-    } catch (err: any) {
-      setError(err.message || "Error al procesar la solicitud");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al procesar la solicitud");
       setIsLoading(false);
     }
   };

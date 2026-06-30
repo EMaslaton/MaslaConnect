@@ -2,7 +2,7 @@ import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/services/supabaseService";
+import { useAuthStore } from "@/store/authStore";
 import { motion } from "framer-motion";
 import { AlertCircle, CheckCircle, Loader } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -16,6 +16,7 @@ interface TokenData {
 
 const ResetPassword = () => {
   const navigate = useNavigate();
+  const resetPassword = useAuthStore((state) => state.resetPassword);
   const [searchParams] = useSearchParams();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -24,7 +25,6 @@ const ResetPassword = () => {
   const [success, setSuccess] = useState(false);
   const [sessionError, setSessionError] = useState(false);
   const [userEmail, setUserEmail] = useState("");
-  const isDev = import.meta.env.DEV;
 
   // Verificar token en URL
   useEffect(() => {
@@ -37,57 +37,37 @@ const ResetPassword = () => {
         return;
       }
 
-      // En desarrollo, validar token de sessionStorage
-      if (isDev) {
-        try {
-          const tokenKey = `reset_token_${token}`;
-          const storedData = sessionStorage.getItem(tokenKey);
-          
-          if (!storedData) {
-            console.error("❌ Token no válido o expirado");
-            setSessionError(true);
-            return;
-          }
-          
-          const tokenData: TokenData = JSON.parse(storedData);
-          
-          // Validar expiración (15 minutos)
-          if (Date.now() > tokenData.expiresAt) {
-            console.error("❌ Token expirado");
-            setSessionError(true);
-            return;
-          }
-          
-          console.log("✅ Token válido para email:", tokenData.email);
-          setUserEmail(tokenData.email);
-          return;
-        } catch (err) {
-          console.error("❌ Error validando token:", err);
-          setSessionError(true);
-          return;
-        }
-      }
-
-      // En producción, verificar con Supabase
+      // Validar token (dev y prod usan el mismo flujo con sessionStorage)
       try {
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash: token,
-          type: "recovery",
-        });
+        const tokenKey = `reset_token_${token}`;
+        const storedData = sessionStorage.getItem(tokenKey);
 
-        if (error) {
+        if (!storedData) {
+          console.error("❌ Token no válido o expirado");
           setSessionError(true);
+          return;
         }
+
+        const tokenData: TokenData = JSON.parse(storedData);
+
+        if (Date.now() > tokenData.expiresAt) {
+          console.error("❌ Token expirado");
+          setSessionError(true);
+          return;
+        }
+
+        console.log("✅ Token válido para email:", tokenData.email);
+        setUserEmail(tokenData.email);
       } catch (err) {
+        console.error("❌ Error validando token:", err);
         setSessionError(true);
       }
     };
 
     checkToken();
-  }, [searchParams, isDev]);
+  }, [searchParams]);
 
   const handleResetPassword = async () => {
-    // Validaciones
     if (!password || !confirmPassword) {
       setError("Por favor completa todos los campos");
       return;
@@ -103,59 +83,30 @@ const ResetPassword = () => {
       return;
     }
 
+    if (!userEmail) {
+      setError("Token inválido o expirado");
+      return;
+    }
+
     setIsLoading(true);
     setError("");
 
     try {
-      // En desarrollo, validar y resetear solo del email del token
-      if (isDev) {
-        if (!userEmail) {
-          setError("Token inválido o expirado");
-          setIsLoading(false);
-          return;
-        }
-
-        console.log("🔧 DEV MODE: Reseteando contraseña de", userEmail);
-        
-        // Validar que el user existe y actualizar su contraseña
-        const users = JSON.parse(localStorage.getItem("auth_users") || "[]");
-        const userIndex = users.findIndex((u: any) => u.email === userEmail);
-        
-        if (userIndex === -1) {
-          setError("Usuario no encontrado");
-          setIsLoading(false);
-          return;
-        }
-        
-        // Actualizar contraseña
-        users[userIndex].password = password;
-        localStorage.setItem("auth_users", JSON.stringify(users));
-        console.log("✅ Contraseña actualizada para:", userEmail);
-        
-        setSuccess(true);
-        setTimeout(() => navigate("/login"), 2000);
-        setIsLoading(false);
+      const success = await resetPassword(userEmail, password);
+      if (!success) {
+        setError("No se pudo actualizar la contraseña");
         return;
       }
 
-      // En producción, usar Supabase
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: password,
-      });
-
-      if (updateError) {
-        setError(updateError.message || "Error al actualizar la contraseña");
-        return;
+      const token = searchParams.get("token");
+      if (token) {
+        sessionStorage.removeItem(`reset_token_${token}`);
       }
 
       setSuccess(true);
-
-      // Redirigir a login después de 2 segundos
-      setTimeout(() => {
-        navigate("/login");
-      }, 2000);
-    } catch (err: any) {
-      setError(err.message || "Error procesando la solicitud");
+      setTimeout(() => navigate("/login"), 2000);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error procesando la solicitud");
     } finally {
       setIsLoading(false);
     }

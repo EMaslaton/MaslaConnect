@@ -19,23 +19,6 @@ try {
   console.log(`🧹 Removed ${keysToDelete.length} cache items`);
 }
 
-// Limpiar usuarios registrados (mantener solo Valentina Reyes)
-try {
-  const authStorageKey = "auth-storage";
-  const authData = localStorage.getItem(authStorageKey);
-  if (authData) {
-    const parsed = JSON.parse(authData);
-    // Si hay usuarios registrados que no sean Valentina, limpiar
-    if (parsed.state?.registeredUsers && parsed.state.registeredUsers.length > 0) {
-      console.log("🧹 Limpiando usuarios registrados (manteniendo solo Valentina Reyes)");
-      parsed.state.registeredUsers = [];
-      localStorage.setItem(authStorageKey, JSON.stringify(parsed));
-    }
-  }
-} catch (e) {
-  console.warn("No hay datos previos para limpiar");
-}
-
 createRoot(document.getElementById("root")!).render(
   <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
     <App />

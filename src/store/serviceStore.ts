@@ -51,7 +51,7 @@ interface ServiceStore {
 export const useServiceStore = create<ServiceStore>(
   (set, get) => ({
       // Iniciar vacío si Supabase está configurado, sino usar SERVICES
-      services: !!import.meta.env.VITE_SUPABASE_URL ? [] : SERVICES,
+      services: import.meta.env.VITE_SUPABASE_URL ? [] : SERVICES,
       isLoading: false,
       isSupabaseReady: !!import.meta.env.VITE_SUPABASE_URL,
 
@@ -63,8 +63,10 @@ export const useServiceStore = create<ServiceStore>(
           try {
             console.log("[Store] Loading services from Supabase...");
             const services = await supabaseServiceManager.getAllServices();
-            set({ services, isLoading: false });
-            console.log(`[Store] Loaded ${services.length} services from Supabase ✅`);
+            const resolvedServices =
+              services.length > 0 ? services : SERVICES;
+            set({ services: resolvedServices, isLoading: false });
+            console.log(`[Store] Loaded ${resolvedServices.length} services from Supabase ✅`);
             return;
           } catch (error) {
             console.error("[Store] Supabase error:", error);
@@ -97,7 +99,7 @@ export const useServiceStore = create<ServiceStore>(
           // Fallback: crear localmente
           const newService: Service = {
             ...service,
-            id: `service_${Date.now()}`,
+            id: `service_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
             createdAt: new Date(),
             updatedAt: new Date(),
           };
@@ -126,18 +128,21 @@ export const useServiceStore = create<ServiceStore>(
           }
 
           // Fallback: actualizar localmente
+          let updatedService: Service | null = null;
           set((state) => ({
-            services: state.services.map((service) =>
-              service.id === id
-                ? {
-                    ...service,
-                    ...updates,
-                    updatedAt: new Date(),
-                  }
-                : service
-            ),
+            services: state.services.map((service) => {
+              if (service.id === id) {
+                updatedService = {
+                  ...service,
+                  ...updates,
+                  updatedAt: new Date(),
+                };
+                return updatedService;
+              }
+              return service;
+            }),
           }));
-          return updates as Service;
+          return updatedService;
         } catch (error) {
           console.error("[Store] Error updating service:", error);
           return null;

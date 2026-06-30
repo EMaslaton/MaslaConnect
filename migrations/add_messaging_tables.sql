@@ -1,8 +1,8 @@
--- Create conversations table
+-- Create conversations table (TEXT IDs compatible with custom users table)
 CREATE TABLE IF NOT EXISTS conversations (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  participant_1_id uuid NOT NULL,
-  participant_2_id uuid NOT NULL,
+  id TEXT PRIMARY KEY DEFAULT ('conv_' || gen_random_uuid()::text),
+  participant_1_id TEXT NOT NULL,
+  participant_2_id TEXT NOT NULL,
   created_at timestamp DEFAULT NOW(),
   updated_at timestamp DEFAULT NOW(),
   UNIQUE(participant_1_id, participant_2_id),
@@ -11,13 +11,12 @@ CREATE TABLE IF NOT EXISTS conversations (
 
 -- Create messages table
 CREATE TABLE IF NOT EXISTS messages (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-  sender_id uuid NOT NULL,
+  id TEXT PRIMARY KEY DEFAULT ('msg_' || gen_random_uuid()::text),
+  conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  sender_id TEXT NOT NULL,
   content text NOT NULL,
   created_at timestamp DEFAULT NOW(),
-  read_at timestamp,
-  FOREIGN KEY (sender_id) REFERENCES auth.users(id) ON DELETE CASCADE
+  read_at timestamp
 );
 
 -- Create indexes for better performance

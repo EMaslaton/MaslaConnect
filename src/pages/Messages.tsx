@@ -122,27 +122,32 @@ const Messages = () => {
 
   // Función para obtener datos del usuario por ID
   const getUserById = (userId: string) => {
-    // Buscar en mock users
-    let foundUser = TALENTS.find((t) => t.id === userId);
-    if (foundUser) {
+    const foundTalent = TALENTS.find((t) => t.id === userId);
+    if (foundTalent) {
       return {
-        name: foundUser.name,
-        avatar: foundUser.avatar,
+        name: foundTalent.name,
+        avatar: foundTalent.avatar,
         tagline: "En línea",
+        email: `${foundTalent.name.toLowerCase().replace(" ", ".")}@maslaconnect.com`,
       };
     }
-    
-    // Buscar en usuarios registrados
-    const registeredUser = registeredUsers?.find((u: any) => u.id === userId);
+
+    const registeredUser = registeredUsers?.find((u) => u.id === userId);
     if (registeredUser) {
       return {
         name: registeredUser.name,
         avatar: registeredUser.avatar,
         tagline: registeredUser.tagline || "En línea",
+        email: registeredUser.email,
       };
     }
-    
-    return { name: "Usuario", avatar: "https://via.placeholder.com/40", tagline: "En línea" };
+
+    return {
+      name: "Usuario",
+      avatar: "https://via.placeholder.com/40",
+      tagline: "En línea",
+      email: undefined,
+    };
   };
 
   const getOtherParticipant = () => {

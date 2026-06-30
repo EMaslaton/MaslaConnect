@@ -19,7 +19,6 @@ const ConfirmReset = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [userEmail, setUserEmail] = useState("");
-  const isDev = import.meta.env.DEV;
 
   useEffect(() => {
     const confirmEmail = async () => {
@@ -32,59 +31,46 @@ const ConfirmReset = () => {
       }
 
       try {
-        if (isDev) {
-          // En DEV, validar el token de confirmación
-          const tokenKey = `confirm_token_${token}`;
-          const storedData = sessionStorage.getItem(tokenKey);
+        const tokenKey = `confirm_token_${token}`;
+        const storedData = sessionStorage.getItem(tokenKey);
 
-          if (!storedData) {
-            setError("Link expirado o inválido");
-            setIsLoading(false);
-            return;
-          }
-
-          const confirmData: ConfirmationData = JSON.parse(storedData);
-
-          // Validar expiración (30 minutos)
-          if (Date.now() > confirmData.expiresAt) {
-            setError("Link expirado. Por favor solicita un nuevo email.");
-            setIsLoading(false);
-            return;
-          }
-
-          // Validar que sea de confirmación
-          if (confirmData.type !== "confirmation") {
-            setError("Link inválido");
-            setIsLoading(false);
-            return;
-          }
-
-          console.log("✅ Email confirmado:", confirmData.email);
-          setUserEmail(confirmData.email);
-          setSuccess(true);
-
-          // Generar nuevo token para el reset de contraseña
-          const resetData = {
-            email: confirmData.email,
-            timestamp: Date.now(),
-            expiresAt: Date.now() + (15 * 60 * 1000), // 15 minutos
-            type: "reset",
-            confirmedAt: Date.now(),
-          };
-          const resetToken = btoa(JSON.stringify(resetData));
-          sessionStorage.setItem(`reset_token_${resetToken}`, JSON.stringify(resetData));
-
-          // Redirigir a reset-password después de 2 segundos
-          setTimeout(() => {
-            navigate(`/reset-password?type=recovery&token=${resetToken}`);
-          }, 2000);
-        } else {
-          // En PROD, validar con Supabase
-          setSuccess(true);
-          setTimeout(() => {
-            navigate(`/reset-password?token=${token}`);
-          }, 2000);
+        if (!storedData) {
+          setError("Link expirado o inválido");
+          setIsLoading(false);
+          return;
         }
+
+        const confirmData: ConfirmationData = JSON.parse(storedData);
+
+        if (Date.now() > confirmData.expiresAt) {
+          setError("Link expirado. Por favor solicita un nuevo email.");
+          setIsLoading(false);
+          return;
+        }
+
+        if (confirmData.type !== "confirmation") {
+          setError("Link inválido");
+          setIsLoading(false);
+          return;
+        }
+
+        console.log("✅ Email confirmado:", confirmData.email);
+        setUserEmail(confirmData.email);
+        setSuccess(true);
+
+        const resetData = {
+          email: confirmData.email,
+          timestamp: Date.now(),
+          expiresAt: Date.now() + 15 * 60 * 1000,
+          type: "reset",
+          confirmedAt: Date.now(),
+        };
+        const resetToken = btoa(JSON.stringify(resetData));
+        sessionStorage.setItem(`reset_token_${resetToken}`, JSON.stringify(resetData));
+
+        setTimeout(() => {
+          navigate(`/reset-password?type=recovery&token=${resetToken}`);
+        }, 2000);
       } catch (err) {
         console.error("Error confirmando email:", err);
         setError("Error al procesar el link");
@@ -94,7 +80,7 @@ const ConfirmReset = () => {
     };
 
     confirmEmail();
-  }, [searchParams, navigate, isDev]);
+  }, [searchParams, navigate]);
 
   if (isLoading) {
     return (

@@ -49,6 +49,18 @@ export const Navbar = () => {
           <>
             {/* Search removed because it's non-functional */}
             <div className="hidden md:flex items-center gap-2">
+              <Link to="/explorar">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "hover:bg-muted",
+                    location.pathname === "/explorar" && "bg-muted"
+                  )}
+                >
+                  Explorar
+                </Button>
+              </Link>
               <Link to="/feed">
                 <Button
                   variant="ghost"
@@ -60,18 +72,6 @@ export const Navbar = () => {
                   title="Inicio"
                 >
                   <Home className="w-5 h-5" />
-                </Button>
-              </Link>
-              <Link to="/explorar">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "hover:bg-muted",
-                    location.pathname === "/explorar" && "bg-muted"
-                  )}
-                >
-                  Explorar
                 </Button>
               </Link>
               <Link to="/mensajes">
