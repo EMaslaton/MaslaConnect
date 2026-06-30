@@ -1,23 +1,28 @@
-import { Link, useLocation } from "react-router-dom";
-import { Home, Search, PlusCircle, MessageCircle, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/store/authStore";
+import { GraduationCap, Home, MessageCircle, PlusCircle, Search } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
 
-const items = [
-  { to: "/feed", icon: Home, label: "Inicio" },
-  { to: "/explorar", icon: Search, label: "Explorar" },
-  { to: "/servicios/nuevo", icon: PlusCircle, label: "Publicar" },
-  { to: "/mensajes", icon: MessageCircle, label: "Chat" },
-  { to: "/panel", icon: User, label: "Perfil" },
-];
-
-export const BottomNav = () => {
+export function BottomNav() {
   const { pathname } = useLocation();
+  const { user } = useAuthStore();
+
+  const publishPath =
+    user?.role === "client" ? "/pasantias/nueva" : "/servicios/nuevo";
+
+  const items = [
+    { to: "/feed", icon: Home, label: "Inicio" },
+    { to: "/explorar", icon: Search, label: "Explorar" },
+    { to: "/pasantias", icon: GraduationCap, label: "Pasantías" },
+    { to: publishPath, icon: PlusCircle, label: "Publicar" },
+    { to: "/mensajes", icon: MessageCircle, label: "Chat" },
+  ];
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-background/90 backdrop-blur-xl border-t border-border">
       <div className="flex items-center justify-around h-16 px-2">
         {items.map(({ to, icon: Icon, label }) => {
-          const active = pathname === to || pathname.startsWith(to + "/");
+          const active = pathname === to || pathname.startsWith(`${to}/`);
           return (
             <Link
               key={to}
@@ -35,4 +40,4 @@ export const BottomNav = () => {
       </div>
     </div>
   );
-};
+}

@@ -4,50 +4,61 @@ import { RealtimeChannel } from "@supabase/supabase-js";
 import { create } from "zustand";
 import { useNotificationStore } from "./notificationStore";
 
-/**
- * MessagesStore - Manages real-time messaging and chat conversations
- * Features:
- * - Fetch and cache conversations
- * - Send and receive messages in real-time
- * - Subscribe to message updates via Supabase realtime
- */
+type MessageSubscription = RealtimeChannel | { unsubscribe: () => void } | null;
+
+function mapRawMessage(msg: Record<string, unknown>): ConversationMessage {
+  return {
+    id: String(msg.id),
+    conversationId: String(msg.conversation_id),
+    senderId: String(msg.sender_id),
+    content: String(msg.content),
+    createdAt: new Date(String(msg.created_at)),
+    readAt: msg.read_at ? new Date(String(msg.read_at)) : undefined,
+  };
+}
+
+function sortMessages(messages: ConversationMessage[]): ConversationMessage[] {
+  return [...messages].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+}
+
 interface MessagesState {
   conversations: Conversation[];
   currentConversation: Conversation | null;
   currentMessages: ConversationMessage[];
   isLoading: boolean;
   error: string | null;
-  subscription: RealtimeChannel | null;
+  subscription: MessageSubscription;
+  pollTimer: ReturnType<typeof setInterval> | null;
+  conversationsPollTimer: ReturnType<typeof setInterval> | null;
+  activeConversationId: string | null;
 
-  // State setters
   setCurrentConversation: (conversation: Conversation | null) => void;
   setCurrentMessages: (messages: ConversationMessage[]) => void;
   addMessage: (message: ConversationMessage) => void;
+  mergeMessages: (messages: ConversationMessage[]) => void;
   setConversations: (conversations: Conversation[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
 
-  // Async actions - Database operations
-  /** Fetch all conversations for a specific user */
-  fetchConversations: (userId: string) => Promise<void>;
-  /** Fetch all messages within a conversation */
+  fetchConversations: (userId: string, options?: { silent?: boolean }) => Promise<void>;
   fetchMessages: (conversationId: string) => Promise<void>;
-  /** Send a new message to a conversation */
+  syncMessages: (conversationId: string) => Promise<void>;
   sendMessage: (
     conversationId: string,
     senderId: string,
     content: string
   ) => Promise<void>;
-  /** Create or get existing conversation between two users */
   startConversation: (
     userId: string,
     otherUserId: string,
     otherUser: UserProfile
   ) => Promise<void>;
-  /** Subscribe to real-time message updates */
   subscribeToMessages: (conversationId: string) => void;
-  /** Unsubscribe from real-time updates */
   unsubscribeFromMessages: () => void;
+  startConversationsPolling: (userId: string) => void;
+  stopConversationsPolling: () => void;
 }
 
 export const useMessagesStore = create<MessagesState>((set, get) => ({
@@ -57,6 +68,9 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
   isLoading: false,
   error: null,
   subscription: null,
+  pollTimer: null,
+  conversationsPollTimer: null,
+  activeConversationId: null,
 
   setCurrentConversation: (conversation) =>
     set({ currentConversation: conversation }),
@@ -67,7 +81,24 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
       if (state.currentMessages.some((m) => m.id === message.id)) {
         return state;
       }
-      return { currentMessages: [...state.currentMessages, message] };
+      return { currentMessages: sortMessages([...state.currentMessages, message]) };
+    });
+  },
+
+  mergeMessages: (messages) => {
+    set((state) => {
+      const byId = new Map(state.currentMessages.map((m) => [m.id, m]));
+      for (const msg of messages) {
+        byId.set(msg.id, msg);
+      }
+      const merged = sortMessages(Array.from(byId.values()));
+      if (
+        merged.length === state.currentMessages.length &&
+        merged.every((m, i) => m.id === state.currentMessages[i]?.id)
+      ) {
+        return state;
+      }
+      return { currentMessages: merged };
     });
   },
 
@@ -75,21 +106,24 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   setError: (error) => set({ error }),
 
-  fetchConversations: async (userId: string) => {
-    set({ isLoading: true, error: null });
+  fetchConversations: async (userId: string, options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      set({ isLoading: true, error: null });
+    }
     try {
       const data = await messagingManager.getConversations(userId);
-      
-      // Mapear campos de snake_case a camelCase
-      const mappedConversations = (data || []).map((conv: any) => ({
-        id: conv.id,
-        participant1Id: conv.participant_1_id,
-        participant2Id: conv.participant_2_id,
-        createdAt: conv.created_at,
-        updatedAt: conv.updated_at,
-      }));
-      
-      set({ conversations: mappedConversations || [], isLoading: false });
+
+      const mappedConversations: Conversation[] = (data || []).map(
+        (conv: Record<string, unknown>) => ({
+          id: String(conv.id),
+          participant1Id: String(conv.participant_1_id),
+          participant2Id: String(conv.participant_2_id),
+          createdAt: new Date(String(conv.created_at)),
+          updatedAt: new Date(String(conv.updated_at)),
+        })
+      );
+
+      set({ conversations: mappedConversations, isLoading: false });
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Error loading conversations";
@@ -101,17 +135,9 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const messages = await messagingManager.getMessages(conversationId);
-      
-      // Mapear campos de snake_case a camelCase
-      const mappedMessages = (messages || []).map((msg: any) => ({
-        id: msg.id,
-        conversationId: msg.conversation_id,
-        senderId: msg.sender_id,
-        content: msg.content,
-        createdAt: new Date(msg.created_at),
-        readAt: msg.read_at ? new Date(msg.read_at) : undefined,
-      }));
-      
+      const mappedMessages = (messages || []).map((msg) =>
+        mapRawMessage(msg as Record<string, unknown>)
+      );
       set({ currentMessages: mappedMessages, isLoading: false });
     } catch (error) {
       const errorMessage =
@@ -120,11 +146,19 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
     }
   },
 
-  sendMessage: async (
-    conversationId: string,
-    senderId: string,
-    content: string
-  ) => {
+  syncMessages: async (conversationId: string) => {
+    try {
+      const messages = await messagingManager.getMessages(conversationId);
+      const mappedMessages = (messages || []).map((msg) =>
+        mapRawMessage(msg as Record<string, unknown>)
+      );
+      get().mergeMessages(mappedMessages);
+    } catch (error) {
+      console.warn("[Store] Error syncing messages:", error);
+    }
+  },
+
+  sendMessage: async (conversationId, senderId, content) => {
     try {
       const message = await messagingManager.sendMessage(
         conversationId,
@@ -142,21 +176,11 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
         return;
       }
 
-      const mappedMessage: ConversationMessage = {
-        id: message.id,
-        conversationId: message.conversation_id,
-        senderId: message.sender_id,
-        content: message.content,
-        createdAt: new Date(message.created_at),
-        readAt: message.read_at ? new Date(message.read_at) : undefined,
-      };
-      get().addMessage(mappedMessage);
+      get().addMessage(mapRawMessage(message as Record<string, unknown>));
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Error sending message";
       set({ error: errorMessage });
-      
-      // Notificar error
       useNotificationStore.getState().addNotification({
         type: "error",
         title: "Error al enviar",
@@ -165,11 +189,7 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
     }
   },
 
-  startConversation: async (
-    userId: string,
-    otherUserId: string,
-    otherUser: UserProfile
-  ) => {
+  startConversation: async (userId, otherUserId, otherUser) => {
     set({ isLoading: true, error: null });
     try {
       const conversation = await messagingManager.getOrCreateConversation(
@@ -199,19 +219,7 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
           isLoading: false,
         });
 
-        // Cargar mensajes existentes
-        const messages = await messagingManager.getMessages(conversation.id);
-        const mappedMessages = (messages || []).map((msg: any) => ({
-          id: msg.id,
-          conversationId: msg.conversation_id,
-          senderId: msg.sender_id,
-          content: msg.content,
-          createdAt: new Date(msg.created_at),
-          readAt: msg.read_at ? new Date(msg.read_at) : undefined,
-        }));
-        set({ currentMessages: mappedMessages || [] });
-
-        // Subscribir a nuevos mensajes en tiempo real
+        await get().fetchMessages(conversation.id);
         get().subscribeToMessages(conversation.id);
       } else {
         const errorMessage = "No se pudo crear la conversación";
@@ -230,28 +238,27 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
   },
 
   subscribeToMessages: (conversationId: string) => {
-    // Primero desuscribirse del anterior si existe
     get().unsubscribeFromMessages();
 
     try {
       const subscription = messagingManager.subscribeToMessages(
         conversationId,
-        (newMessage: any) => {
-          console.log("[Store] New message received:", newMessage);
-          const mappedMessage: ConversationMessage = {
-            id: newMessage.id,
-            conversationId: newMessage.conversation_id,
-            senderId: newMessage.sender_id,
-            content: newMessage.content,
-            createdAt: new Date(newMessage.created_at),
-            readAt: newMessage.read_at ? new Date(newMessage.read_at) : undefined,
-          };
-          get().addMessage(mappedMessage);
+        (newMessage: Record<string, unknown>) => {
+          get().addMessage(mapRawMessage(newMessage));
         }
       );
 
-      set({ subscription });
-      console.log("[Store] Subscribed to messages for conversation:", conversationId);
+      const pollTimer = setInterval(() => {
+        if (get().activeConversationId === conversationId) {
+          get().syncMessages(conversationId);
+        }
+      }, 2500);
+
+      set({
+        subscription,
+        pollTimer,
+        activeConversationId: conversationId,
+      });
     } catch (error) {
       console.error("[Store] Error subscribing to messages:", error);
     }
@@ -259,10 +266,41 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
 
   unsubscribeFromMessages: () => {
     const subscription = get().subscription;
-    if (subscription) {
+    if (subscription && "unsubscribe" in subscription) {
       subscription.unsubscribe();
-      set({ subscription: null });
-      console.log("[Store] Unsubscribed from messages");
     }
+
+    const pollTimer = get().pollTimer;
+    if (pollTimer) {
+      clearInterval(pollTimer);
+    }
+
+    set({
+      subscription: null,
+      pollTimer: null,
+      activeConversationId: null,
+    });
+  },
+
+  startConversationsPolling: (userId: string) => {
+    get().stopConversationsPolling();
+
+    const timer = setInterval(() => {
+      get().fetchConversations(userId, { silent: true });
+      const activeId = get().activeConversationId;
+      if (activeId) {
+        get().syncMessages(activeId);
+      }
+    }, 4000);
+
+    set({ conversationsPollTimer: timer });
+  },
+
+  stopConversationsPolling: () => {
+    const timer = get().conversationsPollTimer;
+    if (timer) {
+      clearInterval(timer);
+    }
+    set({ conversationsPollTimer: null });
   },
 }));

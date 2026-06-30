@@ -25,6 +25,8 @@ const Messages = () => {
     sendMessage,
     subscribeToMessages,
     unsubscribeFromMessages,
+    startConversationsPolling,
+    stopConversationsPolling,
   } = useMessagesStore();
 
   // Hook para inicializar notificaciones
@@ -35,32 +37,29 @@ const Messages = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [lastMessageCount, setLastMessageCount] = useState(0);
 
-  // Cargar conversaciones del usuario
+  // Cargar conversaciones y mantenerlas actualizadas
   useEffect(() => {
-    if (user?.id) {
-      fetchConversations(user.id);
-    }
-  }, [user?.id, fetchConversations]);
+    if (!user?.id) return;
 
-  // Cargar mensajes y subscribirse a actualizaciones en tiempo real
+    fetchConversations(user.id);
+    startConversationsPolling(user.id);
+
+    return () => {
+      stopConversationsPolling();
+    };
+  }, [user?.id, fetchConversations, startConversationsPolling, stopConversationsPolling]);
+
+  // Cargar mensajes y subscribirse cuando cambia la conversación activa
   useEffect(() => {
-    if (currentConversation?.id) {
-      fetchMessages(currentConversation.id);
-      subscribeToMessages(currentConversation.id);
-    }
+    if (!currentConversation?.id) return;
 
-    // Limpiar suscripción al cambiar de conversación
+    fetchMessages(currentConversation.id);
+    subscribeToMessages(currentConversation.id);
+
     return () => {
       unsubscribeFromMessages();
     };
   }, [currentConversation?.id, fetchMessages, subscribeToMessages, unsubscribeFromMessages]);
-
-  // Limpiar suscripción al desmontar el componente
-  useEffect(() => {
-    return () => {
-      unsubscribeFromMessages();
-    };
-  }, [unsubscribeFromMessages]);
 
   // Auto-scroll to bottom
   useEffect(() => {

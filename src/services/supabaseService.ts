@@ -436,8 +436,13 @@ export class MessagingManager {
    * Suscribirse a nuevos mensajes en una conversación (real-time)
    */
   subscribeToMessages(conversationId: string, callback: (message: Record<string, unknown>) => void) {
+    const localSubscription = localMessaging.subscribeToMessages(
+      conversationId,
+      (message) => callback(message as unknown as Record<string, unknown>)
+    );
+
     if (conversationId.startsWith("conv_")) {
-      return localMessaging.subscribeToMessages(conversationId, callback);
+      return localSubscription;
     }
 
     console.log(
@@ -461,7 +466,12 @@ export class MessagingManager {
       )
       .subscribe();
 
-    return subscription;
+    return {
+      unsubscribe: () => {
+        localSubscription.unsubscribe();
+        subscription.unsubscribe();
+      },
+    };
   }
 
   /**

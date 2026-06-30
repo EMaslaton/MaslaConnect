@@ -384,15 +384,22 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       updateProfile: (updates) => {
-        set((state) => ({
-          user: state.user
-            ? {
-                ...state.user,
-                ...updates,
-                updatedAt: new Date(),
-              }
-            : null,
-        }));
+        set((state) => {
+          const updatedUser = state.user
+            ? { ...state.user, ...updates, updatedAt: new Date() }
+            : null;
+
+          const updatedRegisteredUsers = updatedUser
+            ? state.registeredUsers.map((u) =>
+                u.id === updatedUser.id ? updatedUser : u
+              )
+            : state.registeredUsers;
+
+          return {
+            user: updatedUser,
+            registeredUsers: updatedRegisteredUsers,
+          };
+        });
       },
 
       setError: (error) => {

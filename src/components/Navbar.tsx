@@ -49,6 +49,18 @@ export const Navbar = () => {
           <>
             {/* Search removed because it's non-functional */}
             <div className="hidden md:flex items-center gap-2">
+              <Link to="/pasantias">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "hover:bg-muted",
+                    location.pathname.startsWith("/pasantias") && "bg-muted"
+                  )}
+                >
+                  Pasantías
+                </Button>
+              </Link>
               <Link to="/explorar">
                 <Button
                   variant="ghost"
@@ -242,6 +254,13 @@ export const Navbar = () => {
         <div className="md:hidden border-t border-border bg-background p-4 space-y-2 animate-fade-in">
           {isAuthenticated && user ? (
             <>
+              <Link
+                to="/pasantias"
+                className="block px-4 py-2 rounded-lg hover:bg-muted text-sm"
+                onClick={() => setMobileOpen(false)}
+              >
+                Pasantías
+              </Link>
               <Link
                 to="/explorar"
                 className="block px-4 py-2 rounded-lg hover:bg-muted text-sm"

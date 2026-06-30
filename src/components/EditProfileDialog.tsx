@@ -12,8 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { CATEGORIES } from "@/lib/mock-data";
-import { UserProfile } from "@/types";
-import { Check, Upload, X } from "lucide-react";
+import { PortfolioProject, UserProfile } from "@/types";
+import { Check, Plus, Trash2, Upload, X } from "lucide-react";
 import { useRef, useState } from "react";
 
 interface EditProfileDialogProps {
@@ -38,7 +38,20 @@ export const EditProfileDialog = ({
     location: user.location || "",
     avatar: user.avatar || "",
     skills: user.skills || [],
+    portfolioUrl: user.socialLinks?.portfolio || "",
+    linkedin: user.socialLinks?.linkedin || "",
+    github: user.socialLinks?.github || "",
   });
+  const [portfolio, setPortfolio] = useState<PortfolioProject[]>(
+    user.portfolio || []
+  );
+  const [newProject, setNewProject] = useState({
+    title: "",
+    category: "",
+    image: "",
+    link: "",
+  });
+  const portfolioInputRef = useRef<HTMLInputElement>(null);
   const [selectedSkills, setSelectedSkills] = useState<string[]>(
     user.skills || []
   );
@@ -103,10 +116,64 @@ export const EditProfileDialog = ({
     }
   };
 
+  const handlePortfolioImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setNewProject({ ...newProject, image: reader.result as string });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAddProject = () => {
+    if (!newProject.title || !newProject.image) {
+      toast({
+        title: "Proyecto incompleto",
+        description: "Agregá título e imagen al proyecto.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (portfolio.length >= 12) {
+      toast({
+        title: "Límite alcanzado",
+        description: "Podés agregar hasta 12 proyectos.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setPortfolio([
+      ...portfolio,
+      {
+        id: `proj_${Date.now()}`,
+        title: newProject.title,
+        category: newProject.category || "General",
+        image: newProject.image,
+        link: newProject.link || undefined,
+      },
+    ]);
+    setNewProject({ title: "", category: "", image: "", link: "" });
+  };
+
+  const handleRemoveProject = (id: string) => {
+    setPortfolio(portfolio.filter((p) => p.id !== id));
+  };
+
   const handleSave = () => {
     onSave({
-      ...formData,
+      name: formData.name,
+      tagline: formData.tagline,
+      bio: formData.bio,
+      location: formData.location,
+      avatar: formData.avatar,
       skills: selectedSkills,
+      portfolio,
+      socialLinks: {
+        portfolio: formData.portfolioUrl || undefined,
+        linkedin: formData.linkedin || undefined,
+        github: formData.github || undefined,
+      },
     });
     onOpenChange(false);
   };
@@ -223,6 +290,108 @@ export const EditProfileDialog = ({
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Social links */}
+          <div className="space-y-3">
+            <Label>Enlaces profesionales</Label>
+            <Input
+              value={formData.portfolioUrl}
+              onChange={(e) =>
+                setFormData({ ...formData, portfolioUrl: e.target.value })
+              }
+              placeholder="URL de tu portafolio web"
+            />
+            <Input
+              value={formData.linkedin}
+              onChange={(e) =>
+                setFormData({ ...formData, linkedin: e.target.value })
+              }
+              placeholder="LinkedIn"
+            />
+            <Input
+              value={formData.github}
+              onChange={(e) =>
+                setFormData({ ...formData, github: e.target.value })
+              }
+              placeholder="GitHub"
+            />
+          </div>
+
+          {/* Portfolio projects */}
+          <div className="space-y-3">
+            <Label>Portafolio ({portfolio.length}/12)</Label>
+            {portfolio.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {portfolio.map((project) => (
+                  <div key={project.id} className="relative group rounded-lg overflow-hidden border">
+                    <img
+                      src={project.image}
+                      alt={project.title}
+                      className="w-full aspect-square object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveProject(project.id)}
+                      className="absolute top-1 right-1 bg-destructive text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                    <p className="text-[10px] p-1 truncate">{project.title}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="space-y-2 rounded-lg border border-dashed p-3">
+              <Input
+                value={newProject.title}
+                onChange={(e) =>
+                  setNewProject({ ...newProject, title: e.target.value })
+                }
+                placeholder="Título del proyecto"
+              />
+              <Input
+                value={newProject.category}
+                onChange={(e) =>
+                  setNewProject({ ...newProject, category: e.target.value })
+                }
+                placeholder="Categoría (Ej: Diseño UI/UX)"
+              />
+              <Input
+                value={newProject.link}
+                onChange={(e) =>
+                  setNewProject({ ...newProject, link: e.target.value })
+                }
+                placeholder="Link del proyecto (opcional)"
+              />
+              <input
+                ref={portfolioInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePortfolioImage}
+                className="hidden"
+              />
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => portfolioInputRef.current?.click()}
+                >
+                  <Upload className="w-4 h-4 mr-1" />
+                  {newProject.image ? "Cambiar imagen" : "Subir imagen"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleAddProject}
+                  disabled={!newProject.title || !newProject.image}
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Agregar
+                </Button>
+              </div>
             </div>
           </div>
 

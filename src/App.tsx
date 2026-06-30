@@ -6,6 +6,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useNotifications } from "@/hooks/use-notifications";
+import { useInternshipStore } from "@/store/internshipStore";
 import { useServiceStore } from "@/store/serviceStore";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
@@ -16,6 +17,9 @@ import Dashboard from "./pages/Dashboard.tsx";
 import Explorer from "./pages/Explorer.tsx";
 import Feed from "./pages/Feed.tsx";
 import Index from "./pages/Index.tsx";
+import InternshipDetail from "./pages/InternshipDetail.tsx";
+import Internships from "./pages/Internships.tsx";
+import PublishInternship from "./pages/PublishInternship.tsx";
 import Login from "./pages/Login.tsx";
 import Messages from "./pages/Messages.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -30,6 +34,7 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
   const { initializeServices } = useServiceStore();
+  const { initializeInternships } = useInternshipStore();
   
   // Inicializar notificaciones (push notifications, service worker, etc)
   useNotifications();
@@ -37,10 +42,35 @@ const AppContent = () => {
   // Inicializar servicios desde Supabase o localStorage
   useEffect(() => {
     initializeServices();
-  }, [initializeServices]);
+    initializeInternships();
+  }, [initializeServices, initializeInternships]);
 
   return (
     <Routes>
+      <Route
+        path="/pasantias"
+        element={
+          <ProtectedRoute>
+            <Internships />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pasantias/nueva"
+        element={
+          <ProtectedRoute>
+            <PublishInternship />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pasantias/:internshipId"
+        element={
+          <ProtectedRoute>
+            <InternshipDetail />
+          </ProtectedRoute>
+        }
+      />
       <Route path="/" element={<Index />} />
       <Route path="/registro" element={<Register />} />
       <Route path="/login" element={<Login />} />

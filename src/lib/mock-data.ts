@@ -132,6 +132,153 @@ export const OPPORTUNITIES = [
   },
 ];
 
+export const INTERNSHIP_FIELDS = [
+  "Tecnología",
+  "Diseño",
+  "Marketing",
+  "Administración",
+  "Recursos Humanos",
+  "Finanzas",
+  "Comunicación",
+  "Ingeniería",
+  "Salud",
+  "Educación",
+  "Legal",
+  "Otro",
+] as const;
+
+export const INTERNSHIPS = [
+  {
+    id: "int_1",
+    companyId: "company_mock_1",
+    companyName: "TechStart Argentina",
+    title: "Pasante de Desarrollo Web Frontend",
+    description:
+      "Buscamos estudiante de sistemas o carreras afines para colaborar en el desarrollo de interfaces con React. Acompañamiento de un mentor senior.",
+    field: "Tecnología",
+    skills: ["Desarrollo Web", "React", "TypeScript"],
+    stipend: "ARS 120.000 / mes",
+    duration: "6 meses",
+    modality: "hibrido" as const,
+    location: "CABA, Argentina",
+    requirements:
+      "Constancia de alumno regular, CV actualizado y carta de presentación de la facultad.",
+    schoolInfo: "Convenio con universidades nacionales. MaslaConnect gestiona la documentación escuela-empresa.",
+    status: "open" as const,
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+    updatedAt: new Date(),
+  },
+  {
+    id: "int_2",
+    companyId: "company_mock_2",
+    companyName: "Agencia Creativa Norte",
+    title: "Pasante de Diseño UI/UX",
+    description:
+      "Oportunidad para estudiantes de diseño gráfico o multimedia. Participarás en wireframes, prototipos Figma y research con clientes reales.",
+    field: "Diseño",
+    skills: ["Diseño UI/UX", "Figma", "Branding"],
+    stipend: "ARS 90.000 / mes",
+    duration: "4 meses",
+    modality: "presencial" as const,
+    location: "Rosario, Santa Fe",
+    requirements: "Portfolio con al menos 2 proyectos. Certificado analítico vigente.",
+    schoolInfo: "La plataforma centraliza papeles entre tu escuela y la empresa.",
+    status: "open" as const,
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+    updatedAt: new Date(),
+  },
+  {
+    id: "int_3",
+    companyId: "company_mock_3",
+    companyName: "FoodieApp",
+    title: "Pasante de Marketing Digital",
+    description:
+      "Apoyá al equipo de growth con contenido para redes, métricas y campañas. Ideal para estudiantes de marketing o comunicación.",
+    field: "Marketing",
+    skills: ["Marketing Digital", "Redes Sociales", "Copywriting"],
+    stipend: "ARS 80.000 / mes",
+    duration: "3 meses",
+    modality: "remoto" as const,
+    location: "Remoto · Argentina",
+    requirements: "Disponibilidad 20 hs/semana. Experiencia en redes (personal o académica).",
+    status: "open" as const,
+    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+    updatedAt: new Date(),
+  },
+  {
+    id: "int_4",
+    companyId: "company_mock_4",
+    companyName: "Estudio Jurídico Rivadavia",
+    title: "Pasante Administrativo-Legal",
+    description:
+      "Apoyo en gestión documental, seguimiento de expedientes y organización de archivo. Carreras de derecho o administración.",
+    field: "Legal",
+    skills: ["Administración", "Redacción"],
+    stipend: "ARS 70.000 / mes",
+    duration: "6 meses",
+    modality: "presencial" as const,
+    location: "Córdoba, Argentina",
+    requirements: "Matrícula activa. Responsabilidad y manejo de Office.",
+    schoolInfo: "Convenio marco disponible para facultades de derecho.",
+    status: "open" as const,
+    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+    updatedAt: new Date(),
+  },
+];
+
+export const EXTERNAL_INTERNSHIP_LINKS = [
+  {
+    id: "ext_1",
+    name: "Programa de Pasantías Profesionales",
+    organization: "Ministerio de Educación · Argentina",
+    url: "https://www.argentina.gob.ar/educacion",
+    field: "Multirubro",
+    description:
+      "Programas oficiales de pasantías y prácticas profesionalizantes vinculados a instituciones educativas.",
+  },
+  {
+    id: "ext_2",
+    name: "LinkedIn · Pasantías Argentina",
+    organization: "LinkedIn",
+    url: "https://www.linkedin.com/jobs/search/?keywords=pasant%C3%ADa&location=Argentina",
+    field: "Multirubro",
+    description:
+      "Búsqueda activa de pasantías publicadas por empresas argentinas en LinkedIn.",
+  },
+  {
+    id: "ext_3",
+    name: "Bumeran · Pasantías",
+    organization: "Bumeran",
+    url: "https://www.bumeran.com.ar/empleos-busqueda-pasantia.html",
+    field: "Multirubro",
+    description: "Portal de empleo con filtros específicos para pasantías en Argentina.",
+  },
+  {
+    id: "ext_4",
+    name: "Computrabajo · Pasantías",
+    organization: "Computrabajo",
+    url: "https://ar.computrabajo.com/trabajo-de-pasante",
+    field: "Multirubro",
+    description: "Listado de empresas que publican vacantes de pasante en todo el país.",
+  },
+  {
+    id: "ext_5",
+    name: "Zonajobs · Primer empleo",
+    organization: "ZonaJobs",
+    url: "https://www.zonajobs.com.ar/empleos-pasantias.html",
+    field: "Multirubro",
+    description: "Oportunidades de primer empleo y pasantías para jóvenes profesionales.",
+  },
+  {
+    id: "ext_6",
+    name: "AIESEC Argentina",
+    organization: "AIESEC",
+    url: "https://aiesec.org.ar",
+    field: "Internacional",
+    description: "Pasantías y experiencias profesionales con alcance local e internacional.",
+  },
+];
+
 export const SERVICES = [
   // Valentina Reyes (ID: 1)
   {

@@ -88,10 +88,23 @@ const Feed = () => {
                     : "Encuentra talento joven y calificado para llevar tus proyectos al siguiente nivel"}
                 </p>
               </div>
-              {isFreelancer && (
-                <Link to="/servicios/nuevo" className="shrink-0">
-                  <Button size="lg" className="gradient-primary text-primary-foreground rounded-full shadow-lg hover:shadow-xl transition-shadow">
-                    Publicar servicio
+              {isFreelancer ? (
+                <div className="flex flex-col gap-2 shrink-0">
+                  <Link to="/pasantias">
+                    <Button size="lg" variant="outline" className="rounded-full w-full">
+                      🎓 Buscar pasantía
+                    </Button>
+                  </Link>
+                  <Link to="/servicios/nuevo">
+                    <Button size="lg" className="gradient-primary text-primary-foreground rounded-full shadow-lg hover:shadow-xl transition-shadow w-full">
+                      Publicar servicio
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <Link to="/pasantias/nueva" className="shrink-0">
+                  <Button size="lg" className="gradient-primary text-primary-foreground rounded-full">
+                    Publicar pasantía
                   </Button>
                 </Link>
               )}

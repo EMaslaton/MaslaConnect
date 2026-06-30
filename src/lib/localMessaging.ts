@@ -1,6 +1,7 @@
 /**
  * Fallback de mensajería en localStorage cuando Supabase no está disponible
  * o el esquema de UUID no coincide con los IDs de texto de la app.
+ * Soporta notificaciones en tiempo real vía BroadcastChannel (misma máquina).
  */
 
 interface LocalConversation {
@@ -11,7 +12,7 @@ interface LocalConversation {
   updated_at: string;
 }
 
-interface LocalMessage {
+export interface LocalMessage {
   id: string;
   conversation_id: string;
   sender_id: string;
@@ -26,6 +27,63 @@ interface MessagingStore {
 }
 
 const STORAGE_KEY = "masla-local-messaging";
+const CHANNEL_NAME = "masla-local-messaging";
+
+type MessageListener = (message: LocalMessage) => void;
+const listeners = new Map<string, Set<MessageListener>>();
+
+const broadcast =
+  typeof BroadcastChannel !== "undefined"
+    ? new BroadcastChannel(CHANNEL_NAME)
+    : null;
+
+if (broadcast) {
+  broadcast.onmessage = (event: MessageEvent) => {
+    const data = event.data as {
+      type?: string;
+      conversationId?: string;
+      message?: LocalMessage;
+    };
+    if (data?.type === "new_message" && data.conversationId && data.message) {
+      dispatchToListeners(data.conversationId, data.message, false);
+    }
+  };
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (event) => {
+    if (event.key !== STORAGE_KEY || !event.newValue) return;
+    try {
+      const store = JSON.parse(event.newValue) as MessagingStore;
+      const previous = event.oldValue
+        ? (JSON.parse(event.oldValue) as MessagingStore)
+        : { conversations: [], messages: [] };
+      const previousIds = new Set(previous.messages.map((m) => m.id));
+      for (const message of store.messages) {
+        if (!previousIds.has(message.id)) {
+          dispatchToListeners(message.conversation_id, message, false);
+        }
+      }
+    } catch {
+      // ignore corrupt payloads
+    }
+  });
+}
+
+function dispatchToListeners(
+  conversationId: string,
+  message: LocalMessage,
+  shouldBroadcast: boolean
+) {
+  listeners.get(conversationId)?.forEach((cb) => cb(message));
+  if (shouldBroadcast) {
+    broadcast?.postMessage({
+      type: "new_message",
+      conversationId,
+      message,
+    });
+  }
+}
 
 function loadStore(): MessagingStore {
   try {
@@ -128,14 +186,24 @@ export const localMessaging = {
     }
 
     saveStore(store);
+    dispatchToListeners(conversationId, message, true);
     return message;
   },
 
   subscribeToMessages(
-    _conversationId: string,
-    _callback: (message: LocalMessage) => void
+    conversationId: string,
+    callback: (message: LocalMessage) => void
   ) {
-    return { unsubscribe: () => {} };
+    if (!listeners.has(conversationId)) {
+      listeners.set(conversationId, new Set());
+    }
+    listeners.get(conversationId)!.add(callback);
+
+    return {
+      unsubscribe: () => {
+        listeners.get(conversationId)?.delete(callback);
+      },
+    };
   },
 
   markAsRead(messageId: string): void {

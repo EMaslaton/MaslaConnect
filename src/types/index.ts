@@ -36,10 +36,109 @@ export interface UserProfile {
     linkedin?: string;
     github?: string;
   };
+  /** Perfil de pasante (freelancer buscando pasantía) */
+  internshipProfile?: InternshipCandidateProfile;
+  /** Perfil de empresa (client buscando pasantes) */
+  companyProfile?: CompanyProfile;
+  /** Proyectos de portafolio */
+  portfolio?: PortfolioProject[];
   rating?: number; // Average rating (1-5 stars)
   reviewCount?: number; // Total number of reviews
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** Proyecto del portafolio del usuario */
+export interface PortfolioProject {
+  id: string;
+  title: string;
+  description?: string;
+  image: string;
+  category: string;
+  link?: string;
+}
+
+/** Perfil de pasante: disponibilidad, rubro, escuela y documentación */
+export interface InternshipCandidateProfile {
+  seekingInternship: boolean;
+  field: string;
+  school?: string;
+  degree?: string;
+  year?: string;
+  availability?: string;
+  documentsReady?: boolean;
+  coverLetter?: string;
+}
+
+/** Perfil de empresa que busca pasantes */
+export interface CompanyProfile {
+  companyName: string;
+  industry: string;
+  website?: string;
+  description?: string;
+  seekingInterns: boolean;
+}
+
+/** Modalidad de la pasantía */
+export type InternshipModality = "presencial" | "remoto" | "hibrido";
+
+/** Pasantía publicada por una empresa en la plataforma */
+export interface Internship {
+  id: string;
+  companyId: string;
+  companyName: string;
+  title: string;
+  description: string;
+  field: string;
+  skills: string[];
+  stipend?: string;
+  duration: string;
+  modality: InternshipModality;
+  location: string;
+  requirements?: string;
+  schoolInfo?: string;
+  status: "open" | "closed";
+  externalUrl?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Estado de postulación a pasantía */
+export type InternshipApplicationStatus =
+  | "applied"
+  | "reviewing"
+  | "interview"
+  | "accepted"
+  | "rejected";
+
+/** Postulación de un pasante a una pasantía */
+export interface InternshipApplication {
+  id: string;
+  internshipId: string;
+  internshipTitle: string;
+  companyId: string;
+  companyName: string;
+  applicantId: string;
+  applicantName: string;
+  applicantEmail: string;
+  coverLetter?: string;
+  school?: string;
+  degree?: string;
+  documentsReady: boolean;
+  status: InternshipApplicationStatus;
+  matchScore?: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Enlace externo a plataformas de pasantías en Argentina */
+export interface ExternalInternshipLink {
+  id: string;
+  name: string;
+  organization: string;
+  url: string;
+  field: string;
+  description: string;
 }
 
 export interface Service {
