@@ -39,6 +39,7 @@ const Register = () => {
   const [googlePhoneCountry, setGooglePhoneCountry] = useState(DEFAULT_COUNTRY.code);
   const [googlePhoneNumber, setGooglePhoneNumber] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -68,6 +69,72 @@ const Register = () => {
           ? [...prev, skill]
           : prev
     );
+  };
+
+  const requiredText = (value: string) => value.trim().length > 0;
+
+  const validateStepOne = () => {
+    if (!requiredText(formData.name)) {
+      return accountType === "person"
+        ? "Tu nombre es obligatorio"
+        : accountType === "company"
+          ? "El nombre de la empresa es obligatorio"
+          : "El nombre de la institución es obligatorio";
+    }
+
+    if (accountType === "person" && !requiredText(formData.tagline)) {
+      return "La tagline es obligatoria";
+    }
+
+    if (accountType === "company") {
+      if (!requiredText(formData.tagline)) {
+        return "El rubro de la empresa es obligatorio";
+      }
+
+      if (!requiredText(formData.taxId)) {
+        return "El CUIT es obligatorio";
+      }
+    }
+
+    if (accountType === "school") {
+      if (!requiredText(formData.tagline)) {
+        return "La descripción es obligatoria";
+      }
+
+      if (!requiredText(formData.institutionCode)) {
+        return "El código institucional es obligatorio";
+      }
+    }
+
+    if (!requiredText(formData.location)) {
+      return "La ubicación es obligatoria";
+    }
+
+    if (!requiredText(formData.phoneNumber)) {
+      return "El teléfono es obligatorio";
+    }
+
+    return null;
+  };
+
+  const validateSkillsStep = () => {
+    if (selectedSkills.length === 0) {
+      return "Selecciona al menos una habilidad";
+    }
+
+    return null;
+  };
+
+  const runValidation = () => {
+    const stepError = step === 1 ? validateStepOne() : step === 2 ? validateSkillsStep() : null;
+
+    if (stepError) {
+      setRegistrationError(stepError);
+      return false;
+    }
+
+    setRegistrationError(null);
+    return true;
   };
 
   const handleGoogleLogin = useGoogleLogin({
@@ -101,6 +168,10 @@ const Register = () => {
 
   const handleRegister = async () => {
     if (!formData.email || !formData.password || !formData.name) {
+      return;
+    }
+
+    if (!runValidation()) {
       return;
     }
 
@@ -284,7 +355,12 @@ const Register = () => {
               </div>
 
               <div className="space-y-4">
-                {error && (
+                {registrationError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{registrationError}</AlertDescription>
+                  </Alert>
+                )}
+                {!registrationError && error && (
                   <Alert variant="destructive">
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
@@ -301,6 +377,7 @@ const Register = () => {
                       setFormData({ ...formData, email: e.target.value })
                     }
                     disabled={isLoading}
+                    required
                   />
                 </div>
                 <div>
@@ -315,6 +392,7 @@ const Register = () => {
                       setFormData({ ...formData, password: e.target.value })
                     }
                     disabled={isLoading}
+                    required
                   />
                 </div>
                 <Button
@@ -405,6 +483,7 @@ const Register = () => {
                       setFormData({ ...formData, name: e.target.value })
                     }
                     disabled={isLoading}
+                    required
                   />
                 </div>
                 {accountType === "person" && (
@@ -418,6 +497,7 @@ const Register = () => {
                         setFormData({ ...formData, tagline: e.target.value })
                       }
                       disabled={isLoading}
+                      required
                     />
                   </div>
                 )}
@@ -433,6 +513,7 @@ const Register = () => {
                           setFormData({ ...formData, taxId: e.target.value })
                         }
                         disabled={isLoading}
+                        required
                       />
                     </div>
                     <div>
@@ -445,6 +526,7 @@ const Register = () => {
                           setFormData({ ...formData, tagline: e.target.value })
                         }
                         disabled={isLoading}
+                        required
                       />
                     </div>
                   </>
@@ -461,6 +543,7 @@ const Register = () => {
                           setFormData({ ...formData, institutionCode: e.target.value })
                         }
                         disabled={isLoading}
+                        required
                       />
                     </div>
                     <div>
@@ -473,6 +556,7 @@ const Register = () => {
                           setFormData({ ...formData, tagline: e.target.value })
                         }
                         disabled={isLoading}
+                        required
                       />
                     </div>
                   </>
@@ -487,6 +571,7 @@ const Register = () => {
                       setFormData({ ...formData, location: e.target.value })
                     }
                     disabled={isLoading}
+                    required
                   />
                 </div>
                 <div>
@@ -519,19 +604,30 @@ const Register = () => {
                         setFormData({ ...formData, phoneNumber: e.target.value })
                       }
                       disabled={isLoading}
+                      required
                     />
                   </div>
                 </div>
                 <Button
                   onClick={async () => {
                     if (accountType === "person") {
+                      const stepOneError = validateStepOne();
+                      if (stepOneError) {
+                        setRegistrationError(stepOneError);
+                        return;
+                      }
+
                       setStep(2);
+                      return;
+                    }
+
+                    if (!runValidation()) {
                       return;
                     }
 
                     await handleRegister();
                   }}
-                  disabled={!formData.name || isLoading || isRegistering}
+                  disabled={isLoading || isRegistering}
                   className="w-full gradient-primary text-primary-foreground rounded-xl h-11"
                 >
                   {accountType === "person"
@@ -562,7 +658,12 @@ const Register = () => {
                   Elige hasta 3 habilidades principales
                 </p>
               </div>
-              {error && (
+              {registrationError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{registrationError}</AlertDescription>
+                </Alert>
+              )}
+              {!registrationError && error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
@@ -602,7 +703,15 @@ const Register = () => {
                 </div>
               </div>
               <Button
-                onClick={handleRegister}
+                onClick={() => {
+                  const skillsError = validateSkillsStep();
+                  if (skillsError) {
+                    setRegistrationError(skillsError);
+                    return;
+                  }
+
+                  void handleRegister();
+                }}
                 disabled={selectedSkills.length === 0 || isLoading}
                 className="w-full gradient-primary text-primary-foreground rounded-xl h-11"
               >
