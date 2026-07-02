@@ -70,7 +70,7 @@ const PublishInternship = () => {
     }));
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!form.title || !form.description || !form.field || !form.location) {
       setError("Completá los campos obligatorios");
       return;
@@ -95,7 +95,7 @@ const PublishInternship = () => {
         schoolInfo: form.schoolInfo,
       });
 
-      updateProfile({
+      const saved = await updateProfile({
         companyProfile: {
           companyName: form.companyName,
           industry: form.field,
@@ -104,6 +104,11 @@ const PublishInternship = () => {
           website: user.companyProfile?.website,
         },
       });
+
+      if (!saved) {
+        setError("No se pudo guardar el perfil de empresa");
+        return;
+      }
 
       addNotification({
         type: "success",

@@ -222,6 +222,14 @@ const Profile = () => {
                   GitHub
                 </a>
               )}
+              {profile.socialLinks.phone && (
+                <a
+                  href={`tel:${profile.socialLinks.phone}`}
+                  className="text-primary hover:underline"
+                >
+                  Teléfono
+                </a>
+              )}
             </div>
           </div>
         )}

@@ -5,14 +5,36 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   password TEXT,
   role TEXT DEFAULT 'freelancer',
+  account_type TEXT DEFAULT 'person',
   avatar TEXT,
+  phone_country TEXT,
+  phone_dial_code TEXT,
+  phone_number TEXT,
   tagline TEXT,
   bio TEXT,
   location TEXT,
   skills TEXT[] DEFAULT '{}',
+  social_links JSONB DEFAULT '{}'::jsonb,
+  internship_profile JSONB,
+  company_profile JSONB,
+  school_profile JSONB,
+  portfolio JSONB DEFAULT '[]'::jsonb,
+  tax_id TEXT,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS account_type TEXT DEFAULT 'person',
+  ADD COLUMN IF NOT EXISTS social_links JSONB DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS internship_profile JSONB,
+  ADD COLUMN IF NOT EXISTS company_profile JSONB,
+  ADD COLUMN IF NOT EXISTS school_profile JSONB,
+  ADD COLUMN IF NOT EXISTS portfolio JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS tax_id TEXT,
+  ADD COLUMN IF NOT EXISTS phone_country TEXT,
+  ADD COLUMN IF NOT EXISTS phone_dial_code TEXT,
+  ADD COLUMN IF NOT EXISTS phone_number TEXT;
 
 -- Índices para velocidad
 CREATE INDEX idx_users_email ON users(email);

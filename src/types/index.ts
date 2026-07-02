@@ -26,7 +26,11 @@ export interface UserProfile {
   password: string; // Demo only - should be hashed in production backend
   name: string;
   role: UserRole;
+  accountType?: "person" | "company" | "school";
   avatar?: string;
+  phoneCountry?: string;
+  phoneDialCode?: string;
+  phoneNumber?: string;
   tagline?: string; // Short profession/headline
   bio?: string;
   location?: string;
@@ -35,11 +39,14 @@ export interface UserProfile {
     portfolio?: string;
     linkedin?: string;
     github?: string;
+    phone?: string;
   };
   /** Perfil de pasante (freelancer buscando pasantía) */
   internshipProfile?: InternshipCandidateProfile;
   /** Perfil de empresa (client buscando pasantes) */
   companyProfile?: CompanyProfile;
+  /** Perfil de escuela/institución educativa */
+  schoolProfile?: SchoolProfile;
   /** Proyectos de portafolio */
   portfolio?: PortfolioProject[];
   rating?: number; // Average rating (1-5 stars)
@@ -74,9 +81,19 @@ export interface InternshipCandidateProfile {
 export interface CompanyProfile {
   companyName: string;
   industry: string;
+  taxId?: string;
   website?: string;
   description?: string;
   seekingInterns: boolean;
+}
+
+/** Perfil de escuela/institución educativa */
+export interface SchoolProfile {
+  schoolName: string;
+  institutionCode?: string;
+  website?: string;
+  description?: string;
+  seekingStudents?: boolean;
 }
 
 /** Modalidad de la pasantía */

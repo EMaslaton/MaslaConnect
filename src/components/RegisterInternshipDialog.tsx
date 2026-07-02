@@ -56,12 +56,22 @@ export const RegisterInternshipDialog = ({
       return;
     }
 
-    updateProfile({ internshipProfile: form });
-    toast({
-      title: "Perfil de pasante actualizado",
-      description: "Ya aparecés en el listado para empresas.",
-    });
-    onOpenChange(false);
+    (async () => {
+      const saved = await updateProfile({ internshipProfile: form });
+      if (saved) {
+        toast({
+          title: "Perfil de pasante actualizado",
+          description: "Ya aparecés en el listado para empresas.",
+        });
+        onOpenChange(false);
+      } else {
+        toast({
+          title: "No se pudo guardar",
+          description: "Revisá tu conexión e intentá de nuevo.",
+          variant: "destructive",
+        });
+      }
+    })();
   };
 
   return (

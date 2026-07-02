@@ -7,6 +7,194 @@ import { persist } from "zustand/middleware";
 // Owner de la plataforma - protegido de demotions
 const OWNER_EMAIL = "elielmaslaton@gmail.com";
 
+const toDate = (value: unknown, fallback = new Date()) => {
+  if (value instanceof Date) {
+    return value;
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? fallback : parsed;
+  }
+
+  return fallback;
+};
+
+const normalizeUserDates = (user: UserProfile): UserProfile => ({
+  ...user,
+  createdAt: toDate(user.createdAt),
+  updatedAt: toDate(user.updatedAt),
+});
+
+const normalizePhoneNumber = (phoneNumber?: string) =>
+  phoneNumber?.replace(/\D/g, "") || undefined;
+
+const buildFullPhoneNumber = (phoneDialCode?: string, phoneNumber?: string) => {
+  const normalizedNumber = normalizePhoneNumber(phoneNumber);
+
+  if (!phoneDialCode || !normalizedNumber) {
+    return undefined;
+  }
+
+  return `${phoneDialCode}${normalizedNumber}`;
+};
+
+const mapUserFromSupabase = (user: any): UserProfile => ({
+  id: user.id,
+  email: user.email,
+  password: user.password,
+  name: user.name,
+  role: user.role as UserProfile["role"],
+  accountType: user.account_type || "person",
+  avatar: user.avatar,
+  phoneCountry: user.phone_country || undefined,
+  phoneDialCode: user.phone_dial_code || undefined,
+  phoneNumber: user.phone_number || undefined,
+  tagline: user.tagline,
+  bio: user.bio,
+  location: user.location,
+  skills: user.skills || [],
+  socialLinks: user.social_links
+    ? {
+        ...user.social_links,
+        phone:
+          user.social_links.phone ||
+          buildFullPhoneNumber(user.phone_dial_code, user.phone_number),
+      }
+    : buildFullPhoneNumber(user.phone_dial_code, user.phone_number)
+      ? {
+          phone: buildFullPhoneNumber(user.phone_dial_code, user.phone_number),
+        }
+      : undefined,
+  internshipProfile: user.internship_profile || undefined,
+  companyProfile: user.company_profile || undefined,
+  schoolProfile: user.school_profile || undefined,
+  portfolio: user.portfolio || [],
+  createdAt: new Date(user.created_at),
+  updatedAt: new Date(user.updated_at),
+});
+
+const mapUserToSupabase = (user: UserProfile) => {
+  const normalizedUser = normalizeUserDates(user);
+
+  return {
+    id: normalizedUser.id,
+    email: normalizedUser.email,
+    password: normalizedUser.password,
+    name: normalizedUser.name,
+    role: normalizedUser.role,
+    account_type: normalizedUser.accountType || "person",
+    avatar: normalizedUser.avatar,
+    phone_country: normalizedUser.phoneCountry || null,
+    phone_dial_code: normalizedUser.phoneDialCode || null,
+    phone_number: normalizePhoneNumber(normalizedUser.phoneNumber) || null,
+    tagline: normalizedUser.tagline,
+    bio: normalizedUser.bio,
+    location: normalizedUser.location,
+    skills: normalizedUser.skills || [],
+    social_links: {
+      ...(normalizedUser.socialLinks || {}),
+      phone:
+        normalizedUser.socialLinks?.phone ||
+        buildFullPhoneNumber(
+          normalizedUser.phoneDialCode,
+          normalizedUser.phoneNumber
+        ) ||
+        undefined,
+    },
+    internship_profile: normalizedUser.internshipProfile || null,
+    company_profile: normalizedUser.companyProfile || null,
+    school_profile: normalizedUser.schoolProfile || null,
+    portfolio: normalizedUser.portfolio || [],
+    tax_id: normalizedUser.companyProfile?.taxId,
+    created_at: normalizedUser.createdAt.toISOString(),
+    updated_at: normalizedUser.updatedAt.toISOString(),
+  };
+};
+
+const mapLegacyUserToSupabase = (user: UserProfile) => {
+  const normalizedUser = normalizeUserDates(user);
+
+  return {
+    id: normalizedUser.id,
+    email: normalizedUser.email,
+    password: normalizedUser.password,
+    name: normalizedUser.name,
+    role: normalizedUser.role,
+    avatar: normalizedUser.avatar,
+    tagline: normalizedUser.tagline,
+    bio: normalizedUser.bio,
+    location: normalizedUser.location,
+    skills: normalizedUser.skills || [],
+    created_at: normalizedUser.createdAt.toISOString(),
+    updated_at: normalizedUser.updatedAt.toISOString(),
+  };
+};
+
+const isMissingSchemaColumnError = (error: any) =>
+  error?.code === "PGRST204" ||
+  (typeof error?.message === "string" &&
+    error.message.includes("Could not find the"));
+
+const formatSupabaseError = (error: any) => {
+  if (!error) {
+    return "Unknown Supabase error";
+  }
+
+  const parts = [error.code, error.message, error.details, error.hint].filter(
+    (part): part is string => typeof part === "string" && part.trim().length > 0
+  );
+
+  return parts.length > 0 ? parts.join(" | ") : JSON.stringify(error);
+};
+
+const saveUserToSupabase = async (
+  user: UserProfile,
+  mode: "insert" | "upsert" = "insert"
+) => {
+  const { data: existingUser, error: lookupError } = await supabase
+    .from("users")
+    .select("id")
+    .eq("email", user.email)
+    .maybeSingle();
+
+  if (lookupError && lookupError.code !== "PGRST116") {
+    console.warn("[Auth] User lookup failed before Supabase write:", formatSupabaseError(lookupError));
+  }
+
+  const resolvedUser = existingUser?.id ? { ...user, id: existingUser.id } : user;
+  const fullPayload = mapUserToSupabase(resolvedUser);
+  const legacyPayload = mapLegacyUserToSupabase(resolvedUser);
+
+  const execute = async (payload: Record<string, unknown>) =>
+    mode === "insert"
+      ? supabase.from("users").upsert(payload, { onConflict: "email", ignoreDuplicates: true })
+      : supabase.from("users").upsert(payload, { onConflict: "id" });
+
+  const { error: firstError } = await execute(fullPayload);
+
+  if (firstError) {
+    console.warn(
+      "[Auth] Falling back to legacy users schema payload after Supabase write failure",
+      formatSupabaseError(firstError)
+    );
+
+    const { error: fallbackError } = await execute(legacyPayload);
+
+    if (fallbackError) {
+      console.error(
+        "[Auth] Supabase write failed after fallback:",
+        `primary=${formatSupabaseError(firstError)}; fallback=${formatSupabaseError(fallbackError)}`
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  return true;
+};
+
 /**
  * Convert mock data (TALENTS) to UserProfile objects for authentication
  * This is used for demo purposes with password "test123"
@@ -37,13 +225,21 @@ interface AuthStore extends AuthState {
   /** Authenticate user with Google OAuth credentials */
   loginWithGoogle: (googleData: { name: string; email: string; avatar?: string }) => void;
   /** Confirmar rol seleccionado para nuevo usuario de Google */
-  confirmGoogleRole: (role: "freelancer" | "client") => Promise<void>;
+  confirmGoogleRole: (
+    role: "freelancer" | "client",
+    accountType?: "person" | "company" | "school",
+    contactData?: {
+      phoneCountry?: string;
+      phoneDialCode?: string;
+      phoneNumber?: string;
+    }
+  ) => Promise<void>;
   /** Create new user account */
-  register: (userData: Omit<UserProfile, "id" | "createdAt" | "updatedAt">) => void;
+  register: (userData: Omit<UserProfile, "id" | "createdAt" | "updatedAt">) => Promise<boolean>;
   /** Clear authentication and current user */
   logout: () => void;
   /** Update current user profile information */
-  updateProfile: (updates: Partial<UserProfile>) => void;
+  updateProfile: (updates: Partial<UserProfile>) => Promise<boolean>;
   /** Set error message for UI display */
   setError: (error: string | null) => void;
   /** Grant admin privileges to a user */
@@ -96,20 +292,7 @@ export const useAuthStore = create<AuthStore>()(
                 .maybeSingle();
 
               if (!error && supabaseUser && supabaseUser.password === password) {
-                user = {
-                  id: supabaseUser.id,
-                  email: supabaseUser.email,
-                  password: supabaseUser.password,
-                  name: supabaseUser.name,
-                  role: supabaseUser.role as UserProfile["role"],
-                  avatar: supabaseUser.avatar,
-                  tagline: supabaseUser.tagline,
-                  bio: supabaseUser.bio,
-                  location: supabaseUser.location,
-                  skills: supabaseUser.skills || [],
-                  createdAt: new Date(supabaseUser.created_at),
-                  updatedAt: new Date(supabaseUser.updated_at),
-                };
+                user = mapUserFromSupabase(supabaseUser);
 
                 const alreadyRegistered = get().registeredUsers.some(
                   (u) => u.id === user!.id
@@ -162,25 +345,26 @@ export const useAuthStore = create<AuthStore>()(
             
             // Si el usuario ya existe
             if (user) {
+              const normalizedUser = normalizeUserDates(user);
               // Actualizar solo nombre y avatar si cambiaron
               user = {
-                ...user,
+                ...normalizedUser,
                 name: googleData.name,
-                avatar: googleData.avatar || user.avatar,
+                avatar: googleData.avatar || normalizedUser.avatar,
               };
               
               // Actualizar en Supabase
-              await supabase
-                .from("users")
-                .update({ 
-                  name: user.name,
-                  avatar: user.avatar 
-                })
-                .eq("email", googleData.email);
+              await saveUserToSupabase(user, "upsert");
               
               set((state) => {
                 const updatedRegisteredUsers = state.registeredUsers.map((u) =>
-                  u.email === googleData.email ? { ...u, name: user.name, avatar: user.avatar } : u
+                  u.email === googleData.email
+                    ? {
+                        ...normalizeUserDates(u),
+                        name: user.name,
+                        avatar: user.avatar,
+                      }
+                    : u
                 );
                 return {
                   registeredUsers: updatedRegisteredUsers,
@@ -198,7 +382,11 @@ export const useAuthStore = create<AuthStore>()(
                   email: googleData.email,
                   name: googleData.name,
                   role: "admin" as const,
+                  password: "",
                   avatar: googleData.avatar,
+                  phoneCountry: undefined,
+                  phoneDialCode: undefined,
+                  phoneNumber: undefined,
                   tagline: "Administrador",
                   bio: "Gestor principal de la plataforma",
                   location: "Por definir",
@@ -208,19 +396,7 @@ export const useAuthStore = create<AuthStore>()(
                 };
                 
                 // Guardar en Supabase
-                await supabase
-                  .from("users")
-                  .insert({
-                    id: user.id,
-                    email: user.email,
-                    name: user.name,
-                    role: user.role,
-                    avatar: user.avatar,
-                    tagline: user.tagline,
-                    bio: user.bio,
-                    location: user.location,
-                    skills: user.skills,
-                  });
+                await saveUserToSupabase(user, "insert");
                 
                 set((state) => ({
                   registeredUsers: [...state.registeredUsers, user as UserProfile],
@@ -247,7 +423,16 @@ export const useAuthStore = create<AuthStore>()(
         })();
       },
 
-      confirmGoogleRole: async (role: "freelancer" | "client") => {
+      confirmGoogleRole: async (
+        role: "freelancer" | "client",
+        accountType: "person" | "company" | "school" =
+          role === "freelancer" ? "person" : "company",
+        contactData?: {
+          phoneCountry?: string;
+          phoneDialCode?: string;
+          phoneNumber?: string;
+        }
+      ) => {
         set({ isLoading: true, error: null });
         
         try {
@@ -261,29 +446,48 @@ export const useAuthStore = create<AuthStore>()(
             email: googleData.email,
             name: googleData.name,
             role,
+            accountType,
+            password: "",
             avatar: googleData.avatar,
             tagline: `Nuevo ${role === "freelancer" ? "freelancer" : "cliente"} en MaslaConnect`,
             bio: "Bienvenido a MaslaConnect",
             location: "Por definir",
             skills: role === "freelancer" ? [] : [],
+            companyProfile:
+              accountType === "company"
+                ? {
+                    companyName: googleData.name,
+                    industry: "General",
+                    seekingInterns: true,
+                  }
+                : undefined,
+            schoolProfile:
+              accountType === "school"
+                ? {
+                    schoolName: googleData.name,
+                    seekingStudents: true,
+                  }
+                : undefined,
+            phoneCountry: contactData?.phoneCountry,
+            phoneDialCode: contactData?.phoneDialCode,
+            phoneNumber: normalizePhoneNumber(contactData?.phoneNumber),
+            socialLinks: buildFullPhoneNumber(
+              contactData?.phoneDialCode,
+              contactData?.phoneNumber
+            )
+              ? {
+                  phone: buildFullPhoneNumber(
+                    contactData?.phoneDialCode,
+                    contactData?.phoneNumber
+                  ),
+                }
+              : undefined,
             createdAt: new Date(),
             updatedAt: new Date(),
           };
 
           // Guardar en Supabase
-          await supabase
-            .from("users")
-            .insert({
-              id: user.id,
-              email: user.email,
-              name: user.name,
-              role: user.role,
-              avatar: user.avatar,
-              tagline: user.tagline,
-              bio: user.bio,
-              location: user.location,
-              skills: user.skills,
-            });
+          await saveUserToSupabase(user, "insert");
 
           set((state) => ({
             user,
@@ -294,85 +498,69 @@ export const useAuthStore = create<AuthStore>()(
             registeredUsers: [...state.registeredUsers, user],
           }));
         } catch (error) {
-          console.error("❌ Error al confirmar rol de Google:", error);
+          console.error("❌ Error al confirmar rol de Google:", formatSupabaseError(error));
           set({
             isLoading: false,
-            error: "Error al completar el registro",
+            error: error instanceof Error ? error.message : "Error al completar el registro",
           });
         }
       },
 
-      register: (userData) => {
+      register: async (userData) => {
         set({ isLoading: true, error: null });
-        
-        (async () => {
-          try {
-            // Verificar que el email no existe en Supabase
-            const { data: existingUser, error: checkError } = await supabase
-              .from("users")
-              .select("*")
-              .eq("email", userData.email)
-              .maybeSingle();
 
-            if (checkError && checkError.code !== 'PGRST116') {
-              throw checkError;
-            }
+        try {
+          // Verificar que el email no existe en Supabase
+          const { data: existingUser, error: checkError } = await supabase
+            .from("users")
+            .select("*")
+            .eq("email", userData.email)
+            .maybeSingle();
 
-            if (existingUser) {
-              set({
-                isLoading: false,
-                error: "El email ya está registrado",
-              });
-              return;
-            }
+          if (checkError && checkError.code !== "PGRST116") {
+            throw checkError;
+          }
 
-            // Crear nuevo usuario
-            const newUser: UserProfile = {
-              ...userData,
-              id: `user_${Date.now()}`,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            };
-
-            // Guardar en Supabase
-            console.log("[Auth] Saving new user to Supabase:", newUser.email);
-            const { error: insertError } = await supabase
-              .from("users")
-              .insert({
-                id: newUser.id,
-                email: newUser.email,
-                password: newUser.password || "",
-                name: newUser.name,
-                role: newUser.role,
-                avatar: newUser.avatar,
-                tagline: newUser.tagline,
-                bio: newUser.bio,
-                location: newUser.location,
-                skills: newUser.skills || [],
-              });
-
-            if (insertError) {
-              console.error("[Auth] Insert error:", insertError);
-              throw insertError;
-            }
-            
-            console.log("[Auth] User saved successfully:", newUser.email);
-
-            set((state) => ({
-              registeredUsers: [...state.registeredUsers, newUser],
-              user: newUser,
-              isAuthenticated: true,
-              isLoading: false,
-              error: null,
-            }));
-          } catch (error) {
-            console.error("[Auth] Register error:", error);
+          if (existingUser) {
             set({
               isLoading: false,
-              error: error instanceof Error ? error.message : "Error al registrar el usuario",
+              error: "El email ya está registrado",
             });
+            return false;
           }
-        })();
+
+          // Crear nuevo usuario
+          const newUser: UserProfile = {
+            ...userData,
+            accountType: userData.accountType || "person",
+            id: `user_${Date.now()}`,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+
+          // Guardar en Supabase
+          console.log("[Auth] Saving new user to Supabase:", newUser.email);
+          await saveUserToSupabase(newUser, "insert");
+
+          console.log("[Auth] User saved successfully:", newUser.email);
+
+          set((state) => ({
+            registeredUsers: [...state.registeredUsers, newUser],
+            user: newUser,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          }));
+
+          return true;
+        } catch (error) {
+          console.error("[Auth] Register error:", formatSupabaseError(error));
+          set({
+            isLoading: false,
+            error: error instanceof Error ? error.message : formatSupabaseError(error),
+          });
+          return false;
+        }
       },
 
       logout: () => {
@@ -383,23 +571,35 @@ export const useAuthStore = create<AuthStore>()(
         });
       },
 
-      updateProfile: (updates) => {
-        set((state) => {
-          const updatedUser = state.user
-            ? { ...state.user, ...updates, updatedAt: new Date() }
-            : null;
+      updateProfile: async (updates) => {
+        const currentUser = get().user;
 
-          const updatedRegisteredUsers = updatedUser
-            ? state.registeredUsers.map((u) =>
-                u.id === updatedUser.id ? updatedUser : u
-              )
-            : state.registeredUsers;
+        if (!currentUser) {
+          return false;
+        }
 
-          return {
-            user: updatedUser,
-            registeredUsers: updatedRegisteredUsers,
-          };
-        });
+        const updatedUser = {
+          ...currentUser,
+          ...updates,
+          updatedAt: new Date(),
+        };
+
+        set((state) => ({
+          user: updatedUser,
+          registeredUsers: state.registeredUsers.map((u) =>
+            u.id === updatedUser.id ? updatedUser : u
+          ),
+        }));
+
+        try {
+          await saveUserToSupabase(updatedUser, "upsert");
+
+          return true;
+        } catch (error) {
+          console.error("[Auth] Update profile error:", formatSupabaseError(error));
+          set({ error: "Error al guardar el perfil en la base de datos" });
+          return false;
+        }
       },
 
       setError: (error) => {
@@ -581,20 +781,9 @@ export const useAuthStore = create<AuthStore>()(
           if (error) throw error;
 
           // Mapear datos de Supabase a UserProfile
-          const mappedUsers: UserProfile[] = (supabaseUsers || []).map((user: any) => ({
-            id: user.id,
-            email: user.email,
-            password: user.password,
-            name: user.name,
-            role: user.role as "admin" | "freelancer",
-            avatar: user.avatar,
-            tagline: user.tagline,
-            bio: user.bio,
-            location: user.location,
-            skills: user.skills || [],
-            createdAt: new Date(user.created_at),
-            updatedAt: new Date(user.updated_at),
-          }));
+          const mappedUsers: UserProfile[] = (supabaseUsers || []).map((user: any) =>
+            mapUserFromSupabase(user)
+          );
 
           // Actualizar estado local con usuarios de Supabase
           set((state) => ({
