@@ -207,7 +207,7 @@ const Index = () => {
         <div className="container">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <span className="font-display font-bold text-lg text-foreground">
-              Junior<span className="text-primary">Hub</span>
+              Masla<span className="text-primary">Connect</span>
             </span>
             <div className="flex gap-6 text-sm text-muted-foreground">
               <a href="#" className="hover:text-foreground transition-colors">Sobre nosotros</a>
@@ -215,7 +215,7 @@ const Index = () => {
               <a href="#" className="hover:text-foreground transition-colors">Privacidad</a>
               <a href="#" className="hover:text-foreground transition-colors">Contacto</a>
             </div>
-            <p className="text-xs text-muted-foreground">© 2026 JuniorHub. Todos los derechos reservados.</p>
+            <p className="text-xs text-muted-foreground">© 2026 MaslaConnect. Todos los derechos reservados.</p>
           </div>
         </div>
       </footer>
