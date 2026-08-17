@@ -9,6 +9,9 @@ if (import.meta.env.VITE_RESEND_API_KEY) {
   console.warn('⚠️ VITE_RESEND_API_KEY not found in environment variables. Email notifications will be disabled.');
 }
 
+const resendFromAddress =
+  import.meta.env.VITE_RESEND_FROM_EMAIL || 'MaslaConnect <onboarding@resend.dev>';
+
 export interface NotificationOptions {
   title: string;
   message: string;
@@ -72,15 +75,15 @@ export class NotificationManager {
     toEmail: string,
     subject: string,
     htmlContent: string
-  ) {
+  ): Promise<{ success: boolean; error?: string }> {
     if (!resend) {
       console.warn('⚠️ Resend API key not configured. Email notification skipped.');
-      return false;
+      return { success: false, error: 'VITE_RESEND_API_KEY no está configurada' };
     }
 
     try {
       const response = await resend.emails.send({
-        from: 'MaslaConnect <noreply@maslaconnect.com>',
+        from: resendFromAddress,
         to: toEmail,
         subject,
         html: htmlContent,
@@ -88,14 +91,23 @@ export class NotificationManager {
 
       if (response.error) {
         console.error('Error al enviar email:', response.error);
-        return false;
+        return {
+          success: false,
+          error:
+            typeof response.error === 'string'
+              ? response.error
+              : 'Resend devolvió un error al enviar el email',
+        };
       }
 
       console.log(`Email enviado exitosamente: ${response.data?.id}`);
-      return true;
+      return { success: true };
     } catch (error) {
       console.error('Error en sendEmailNotification:', error);
-      return false;
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Error desconocido enviando email',
+      };
     }
   }
 

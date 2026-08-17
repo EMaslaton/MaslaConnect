@@ -25,6 +25,7 @@ export const ForgotPasswordDialog = ({ open, onOpenChange }: ForgotPasswordDialo
   const [success, setSuccess] = useState(false);
   const [resetLink, setResetLink] = useState("");
   const isDev = import.meta.env.DEV;
+  const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
 
   const handleResetPassword = async () => {
     if (!email.trim()) {
@@ -50,25 +51,53 @@ export const ForgotPasswordDialog = ({ open, onOpenChange }: ForgotPasswordDialo
 
       const timestamp = Date.now();
       const expiresAt = timestamp + 30 * 60 * 1000;
-      const confirmationData = {
+      const token = crypto.randomUUID();
+      const resetData = {
         email: email.trim(),
         timestamp,
         expiresAt,
-        type: "confirmation",
+        type: "recovery",
       };
-      const confirmToken = btoa(JSON.stringify(confirmationData));
 
-      sessionStorage.setItem(
-        `confirm_token_${confirmToken}`,
-        JSON.stringify(confirmationData)
-      );
+      const { error: insertError } = await supabase
+        .from("password_reset_tokens")
+        .insert({
+          email: email.trim(),
+          token,
+          expires_at: new Date(expiresAt).toISOString(),
+        });
 
-      const confirmLink = `${window.location.origin}/confirm-reset?token=${confirmToken}`;
+      if (insertError) {
+        throw insertError;
+      }
+
+      const resetUrl = `${appUrl}/reset-password?type=recovery&token=${encodeURIComponent(token)}`;
+      const emailResponse = await fetch('/api/send-reset-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          resetUrl,
+        }),
+      });
+
+      const emailResult = await emailResponse.json();
+
+      if (!emailResponse.ok || !emailResult.success) {
+        await supabase.from("password_reset_tokens").delete().eq("token", token);
+        throw new Error(
+          emailResult.error
+            ? `No se pudo enviar el email de recuperación: ${emailResult.error}`
+            : "No se pudo enviar el email de recuperación"
+        );
+      }
 
       if (isDev) {
-        console.log(`✉️ Email de confirmación para: ${email}`);
-        console.log(`Link: ${confirmLink}`);
-        setResetLink(confirmLink);
+        console.log(`✉️ Email de recuperación para: ${email}`);
+        console.log(`Link: ${resetUrl}`);
+        setResetLink(resetUrl);
       }
 
       setSuccess(true);
@@ -114,7 +143,7 @@ export const ForgotPasswordDialog = ({ open, onOpenChange }: ForgotPasswordDialo
               <div>
                 <p className="font-medium text-green-700">¡Éxito!</p>
                 <p className="text-sm text-green-600">
-                  Revisa tu email de confirmación para cambiar tu contraseña
+                  Revisa tu email de recuperación para cambiar tu contraseña
                 </p>
               </div>
             </div>
@@ -122,13 +151,13 @@ export const ForgotPasswordDialog = ({ open, onOpenChange }: ForgotPasswordDialo
             {isDev && resetLink && (
               <div className="space-y-2 bg-blue-50 p-3 rounded-lg border border-blue-200">
                 <p className="text-xs font-medium text-blue-800">
-                  🔧 DEV - Simular Email de Confirmación:
+                  🔧 DEV - Link de recuperación:
                 </p>
                 <button
                   onClick={() => window.open(resetLink, "_blank")}
                   className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
                 >
-                  Abrir Link de Confirmación
+                  Abrir Link de Recuperación
                 </button>
               </div>
             )}

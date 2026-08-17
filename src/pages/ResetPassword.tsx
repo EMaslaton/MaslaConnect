@@ -2,6 +2,7 @@ import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { supabase } from "@/services/supabaseService";
 import { useAuthStore } from "@/store/authStore";
 import { motion } from "framer-motion";
 import { AlertCircle, CheckCircle, Loader } from "lucide-react";
@@ -37,21 +38,33 @@ const ResetPassword = () => {
         return;
       }
 
-      // Validar token (dev y prod usan el mismo flujo con sessionStorage)
       try {
-        const tokenKey = `reset_token_${token}`;
-        const storedData = sessionStorage.getItem(tokenKey);
+        const { data, error } = await supabase
+          .from("password_reset_tokens")
+          .select("email, expires_at, used_at")
+          .eq("token", token)
+          .maybeSingle();
 
-        if (!storedData) {
+        if (error || !data) {
           console.error("❌ Token no válido o expirado");
           setSessionError(true);
           return;
         }
 
-        const tokenData: TokenData = JSON.parse(storedData);
+        const tokenData: TokenData = {
+          email: data.email,
+          timestamp: Date.now(),
+          expiresAt: new Date(data.expires_at).getTime(),
+        };
 
         if (Date.now() > tokenData.expiresAt) {
           console.error("❌ Token expirado");
+          setSessionError(true);
+          return;
+        }
+
+        if (data.used_at) {
+          console.error("❌ Token ya utilizado");
           setSessionError(true);
           return;
         }
@@ -73,8 +86,8 @@ const ResetPassword = () => {
       return;
     }
 
-    if (password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres");
+    if (password.length < 8) {
+      setError("La contraseña debe tener al menos 8 caracteres");
       return;
     }
 
@@ -100,7 +113,10 @@ const ResetPassword = () => {
 
       const token = searchParams.get("token");
       if (token) {
-        sessionStorage.removeItem(`reset_token_${token}`);
+        await supabase
+          .from("password_reset_tokens")
+          .update({ used_at: new Date().toISOString() })
+          .eq("token", token);
       }
 
       setSuccess(true);
@@ -192,7 +208,7 @@ const ResetPassword = () => {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Al menos 6 caracteres"
+                  placeholder="Al menos 8 caracteres"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}

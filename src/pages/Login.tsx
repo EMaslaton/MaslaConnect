@@ -116,7 +116,7 @@ const Login = () => {
                 disabled={isLoading}
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Demo: valentina.reyes@maslaconnect.com
+                Usá el email con el que registraste tu cuenta
               </p>
             </div>
             <div>

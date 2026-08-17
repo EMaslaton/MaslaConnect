@@ -12,6 +12,15 @@ interface ConfirmationData {
   type: string;
 }
 
+const readTokenData = (storageKey: string) => {
+  const localValue = localStorage.getItem(storageKey);
+  if (localValue) {
+    return localValue;
+  }
+
+  return sessionStorage.getItem(storageKey);
+};
+
 const ConfirmReset = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -32,7 +41,7 @@ const ConfirmReset = () => {
 
       try {
         const tokenKey = `confirm_token_${token}`;
-        const storedData = sessionStorage.getItem(tokenKey);
+        const storedData = readTokenData(tokenKey);
 
         if (!storedData) {
           setError("Link expirado o inválido");
@@ -66,10 +75,10 @@ const ConfirmReset = () => {
           confirmedAt: Date.now(),
         };
         const resetToken = btoa(JSON.stringify(resetData));
-        sessionStorage.setItem(`reset_token_${resetToken}`, JSON.stringify(resetData));
+        localStorage.setItem(`reset_token_${resetToken}`, JSON.stringify(resetData));
 
         setTimeout(() => {
-          navigate(`/reset-password?type=recovery&token=${resetToken}`);
+          navigate(`/reset-password?type=recovery&token=${encodeURIComponent(resetToken)}`);
         }, 2000);
       } catch (err) {
         console.error("Error confirmando email:", err);
